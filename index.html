@@ -367,7 +367,9 @@
     gap: 24px;
   }
   @media (max-width: 700px) {
+    .gallery-section { padding: 40px 12px 60px; }
     .gallery-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .gallery-card { min-width: 0; }
     .gallery-plate { padding: 7px 6px 8px; min-height: 42px; }
     .plate-text { font-size: 11px; letter-spacing: 0.5px; }
     .plate-text.is-empty { font-size: 10px; }
@@ -739,6 +741,7 @@
       radial-gradient(ellipse at 50% 85%, rgba(139,0,0,0.18) 0%, transparent 55%),
       radial-gradient(ellipse at 75% 60%, rgba(212,175,55,0.08) 0%, transparent 40%);
     color: var(--text);
+    overflow-x: hidden;
   }
 
   /* ── HERO ── */
@@ -884,6 +887,7 @@
   .gallery-card {
     display: flex;
     flex-direction: column;
+    min-width: 0; /* グリッドセルからはみ出し防止 */
   }
   .gallery-plate {
     background: linear-gradient(160deg, #1E0E0C, #140A08);
