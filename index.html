@@ -367,10 +367,10 @@
     gap: 24px;
   }
   @media (max-width: 700px) {
-    .gallery-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
-  }
-  @media (max-width: 400px) {
-    .gallery-grid { grid-template-columns: 1fr; }
+    .gallery-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .gallery-plate { padding: 7px 6px 8px; min-height: 42px; }
+    .plate-text { font-size: 11px; letter-spacing: 0.5px; }
+    .plate-text.is-empty { font-size: 10px; }
   }
   /* 美術館フレーム風 */
   .gallery-item {
@@ -1360,7 +1360,7 @@ function renderGallery() {
     // 画像フレーム（金縁）
     const frame = document.createElement('div');
     frame.className = 'gallery-item';
-    frame.innerHTML = `<img src="${img.url}" alt="" loading="lazy">`;
+    frame.innerHTML = `<img src="${img.thumbUrl || img.url}" alt="" loading="lazy">`;
     frame.addEventListener('click', () => openLightbox(i));
 
     // 美術館銘板（タイトル）
@@ -1445,15 +1445,20 @@ async function uploadToImgBB(file) {
   if (!res.ok) throw new Error(`ImgBB HTTP ${res.status}`);
   const json = await res.json();
   if (!json.success) throw new Error('ImgBB: ' + JSON.stringify(json.error));
-  return { url: json.data.url, deleteUrl: json.data.delete_url };
+  return {
+    url:       json.data.url,                              // フルサイズ（ライトボックス用）
+    thumbUrl:  json.data.thumb?.url || json.data.medium?.url || json.data.url, // 小サイズ（ギャラリー表示用）
+    deleteUrl: json.data.delete_url
+  };
 }
 
 /* ============================================================
    Firestore 保存
    ============================================================ */
-async function saveImage(url, deleteUrl, title) {
+async function saveImage(url, thumbUrl, deleteUrl, title) {
   await db.collection(COLLECTION).add({
     url,
+    thumbUrl,   // ギャラリー表示用（中サイズ・通信量節約）
     deleteUrl,
     title: title || '',
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1552,8 +1557,8 @@ umSubmit.addEventListener('click', async () => {
     const { file, title } = entries[i];
     toastText.textContent = `${i + 1} / ${entries.length} をアップロード中…`;
     try {
-      const { url, deleteUrl } = await uploadToImgBB(file);
-      await saveImage(url, deleteUrl, title);
+      const { url, thumbUrl, deleteUrl } = await uploadToImgBB(file);
+      await saveImage(url, thumbUrl, deleteUrl, title);
       success++;
     } catch (err) {
       console.error(file.name, err);
