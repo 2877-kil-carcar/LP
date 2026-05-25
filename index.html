@@ -1153,9 +1153,54 @@
     .plate-text { font-size: 8px; letter-spacing: 0; }
     .plate-text.is-empty { font-size: 7px; }
   }
+
+  /* ── ババ抜きボタン ── */
+  .game-banner {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 16px;
+    background: linear-gradient(90deg, rgba(13,4,6,0.92), rgba(33,11,18,0.96), rgba(13,4,6,0.92));
+    border-bottom: 1px solid rgba(212,175,55,0.2);
+    backdrop-filter: blur(10px);
+  }
+  .game-banner-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 28px;
+    background: linear-gradient(135deg, #C41E3A 0%, #8B0000 100%);
+    border: 1px solid rgba(212,175,55,0.35);
+    border-radius: 999px;
+    color: #FFE566;
+    font-family: 'Kaisei Decol', serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-decoration: none;
+    box-shadow: 0 4px 20px rgba(196,30,58,0.45), 0 0 0 1px rgba(212,175,55,0.1);
+    transition: all 0.2s;
+    animation: gold-pulse 2.5s ease-in-out infinite;
+  }
+  .game-banner-btn:hover {
+    background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%);
+    color: #3D0A10;
+    box-shadow: 0 6px 28px rgba(212,175,55,0.5);
+    transform: translateY(-1px);
+  }
+  /* バナー分だけheroを下げる */
+  .hero { padding-top: 100px; }
 </style>
 </head>
 <body>
+
+<!-- ババ抜きバナー -->
+<div class="game-banner">
+  <a href="babanuki.html" class="game-banner-btn">🃏 ババ抜きで遊ぶ</a>
+</div>
 
 <!-- HERO -->
 <section class="hero">
