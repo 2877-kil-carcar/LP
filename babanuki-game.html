@@ -663,6 +663,8 @@ onValue(roomRef, async (snap) => {
 });
 
 window.hostStartGame = async function() {
+  // 画像が取得できるまで待ってからゲームを開始する
+  await loadGalleryImages();
   const snap = await get(roomRef);
   if (!snap.exists()) return;
   const room = snap.val();
@@ -683,11 +685,12 @@ async function startGame(room) {
 
   const gs = {
     hands: {},
-    currentTurn: 0, // index into pids
+    currentTurn: 0,
     pids: pids,
     eliminated: [],
     finished: [],
-    logs: ['ゲーム開始！ペアを除いて配りました。']
+    logs: ['ゲーム開始！ペアを除いて配りました。'],
+    cardImages: rankImages  // ホストの画像URLを全員に配布
   };
   pids.forEach((pid, i) => {
     gs.hands[pid] = serialized[i];
@@ -709,6 +712,8 @@ function startGameUI(gs, players) {
 // ===== GAME RENDER =====
 function renderGame(gs, players) {
   if (!gs) return;
+  // ホストが配布した画像URLをセット（全員共通）
+  if (gs.cardImages) rankImages = gs.cardImages;
   const pids = gs.pids;
   myIndex = pids.indexOf(MY_PID);
   const currentPid = pids[gs.currentTurn % pids.length];
