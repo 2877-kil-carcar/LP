@@ -308,7 +308,7 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, set, get, update, onValue, push } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getDatabase, ref, set, get, update, onValue, push, query, orderByChild, endAt, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBmPQX35nYTBzJhvU5Cu4lBifpmzQW2PLk",
@@ -361,10 +361,25 @@
     return id;
   }
 
+  // 2時間以上前に作られたルームを自動削除
+  async function cleanupOldRooms() {
+    try {
+      const cutoff = Date.now() - 2 * 60 * 60 * 1000;
+      const oldSnap = await get(query(ref(db, 'rooms'), orderByChild('createdAt'), endAt(cutoff)));
+      if (!oldSnap.exists()) return;
+      const deletions = {};
+      oldSnap.forEach(child => { deletions['rooms/' + child.key] = null; });
+      await update(ref(db), deletions);
+    } catch(e) {
+      console.warn('古いルーム削除失敗:', e);
+    }
+  }
+
   window.createRoom = async function() {
     if (!db) { alert('先にFirebase設定を保存してください'); return; }
     const name = document.getElementById('playerName').value.trim();
     if (!name) { setStatus('名前を入力してください', 'error'); return; }
+    await cleanupOldRooms();
 
     const roomCode = genRoomCode();
     const pid = getPlayerId();
@@ -388,6 +403,7 @@
     if (!db) { alert('先にFirebase設定を保存してください'); return; }
     const name = document.getElementById('playerName').value.trim();
     if (!name) { setStatus('名前を入力してください', 'error'); return; }
+    await cleanupOldRooms();
 
     const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
     if (code.length !== 4) { setStatus('4文字のルームコードを入力してください', 'error'); return; }
