@@ -1383,6 +1383,9 @@ async function loadGallery() {
       .limit(MAX_IMAGES)
       .get();
     images = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // ババ抜きのカード絵柄用にURLをlocalStorageへ保存
+    const urls = images.map(img => img.thumbUrl || img.url).filter(Boolean);
+    if (urls.length > 0) localStorage.setItem('gallery_image_urls', JSON.stringify(urls));
   } catch (err) {
     console.error("Firestore読み込みエラー:", err);
   }

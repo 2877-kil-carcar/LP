@@ -283,7 +283,7 @@
       <div class="card-mini">🃏</div>
     </div>
     <h1>ババ抜き</h1>
-    <p class="subtitle">Online Multiplayer · 4 Players</p>
+    <p class="subtitle">Online Multiplayer · 2〜30 Players</p>
   </div>
 
   <!-- ロビーパネル -->
@@ -401,7 +401,7 @@
     if (room.status === 'playing') { setStatus('そのルームはゲーム中です', 'error'); return; }
 
     const playerCount = Object.keys(room.players || {}).length;
-    if (playerCount >= 4) { setStatus('ルームが満員です (4/4)', 'error'); return; }
+    if (playerCount >= 30) { setStatus('ルームが満員です (30/30)', 'error'); return; }
 
     localStorage.setItem('babanuki_player', JSON.stringify({ name, pid }));
 

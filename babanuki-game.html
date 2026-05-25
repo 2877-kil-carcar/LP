@@ -67,16 +67,19 @@
   .player-slots {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 8px;
     width: 100%;
-    max-width: 380px;
+    max-width: 420px;
+    max-height: 320px;
+    overflow-y: auto;
     margin-bottom: 28px;
+    padding-right: 4px;
   }
   .player-slot {
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 12px;
-    padding: 16px;
+    border-radius: 10px;
+    padding: 10px 8px;
     text-align: center;
     transition: all 0.3s;
   }
@@ -448,7 +451,10 @@
   <div class="result-title" id="resultTitle">ゲーム終了！</div>
   <div class="result-sub" id="resultSub"></div>
   <div class="result-rankings" id="resultRankings"></div>
-  <button class="btn-play-again" onclick="location.href='babanuki.html'">ロビーに戻る</button>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+    <button class="btn-play-again" onclick="playAgain()" style="background:linear-gradient(135deg,#2d8a56,#1a5c38);color:#f5f0e8;">もう一回 🔄</button>
+    <button class="btn-play-again" onclick="location.href='babanuki.html'">ロビーに戻る</button>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -480,18 +486,46 @@ const db = getDatabase(app);
 document.getElementById('roomCodeDisplay').textContent = ROOM;
 document.getElementById('roomCodeSmall').textContent = ROOM;
 
+// ===== GALLERY IMAGES FOR CARD FACES =====
+// index.html（ギャラリー）がlocalStorageに保存したURLを使う
+let rankImages = {};
+
+function loadGalleryImages() {
+  try {
+    const stored = localStorage.getItem('gallery_image_urls');
+    if (!stored) return;
+    let urls = JSON.parse(stored).filter(Boolean);
+    if (urls.length === 0) return;
+    // シャッフルしてランクに割り当て
+    for (let i = urls.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [urls[i], urls[j]] = [urls[j], urls[i]];
+    }
+    const RANK_KEYS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+    RANK_KEYS.forEach((rank, i) => {
+      rankImages[rank] = urls[i % urls.length];
+    });
+  } catch(e) {
+    console.warn('ギャラリー画像の読み込み失敗:', e);
+  }
+}
+loadGalleryImages(); // 同期処理なのでゲーム開始前に確実に完了する
+
 // ===== CARD LOGIC =====
 const SUITS = ['♠','♥','♦','♣'];
 const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 
-function createDeck() {
+function createDeck(numDecks = 1) {
   const deck = [];
-  for (const suit of SUITS) {
-    for (const rank of RANKS) {
-      deck.push({ suit, rank, id: suit + rank });
+  for (let d = 0; d < numDecks; d++) {
+    for (const suit of SUITS) {
+      for (const rank of RANKS) {
+        // 複数デッキでも id をユニークにする
+        deck.push({ suit, rank, id: `${suit}${rank}_${d}` });
+      }
     }
   }
-  deck.push({ suit: '🃏', rank: 'JOKER', id: 'JOKER' });
+  deck.push({ suit: '🃏', rank: 'JOKER', id: 'JOKER' }); // ジョーカーは常に1枚
   return deck;
 }
 
@@ -593,7 +627,9 @@ window.hostStartGame = async function() {
 async function startGame(room) {
   const pids = Object.keys(room.players);
   const numPlayers = pids.length;
-  const deck = shuffle(createDeck());
+  // 1人あたり約4枚になるようデッキ数を自動調整（最低1）
+  const numDecks = Math.max(1, Math.ceil(numPlayers * 4 / 52));
+  const deck = shuffle(createDeck(numDecks));
   let hands = dealCards(deck, numPlayers);
   hands = hands.map(h => removePairs(h));
   const serialized = serializeHands(hands);
@@ -650,20 +686,18 @@ function renderGame(gs, players) {
   // Opponents
   const oppArea = document.getElementById('opponentsArea');
   oppArea.innerHTML = '';
+  const targetPid = getDrawTarget(gs);
+  // 大人数時はカードバックを小さく
+  const totalPlayers = pids.length;
+  const cardW = totalPlayers > 10 ? 20 : totalPlayers > 6 ? 26 : 32;
+  const cardH = totalPlayers > 10 ? 29 : totalPlayers > 6 ? 37 : 46;
+
   pids.forEach((pid, i) => {
     if (pid === MY_PID) return;
     const hand = gs.hands[pid] || [];
     const name = players[pid]?.name || pid;
     const isActive = pids[gs.currentTurn % pids.length] === pid;
     const isElim = gs.eliminated?.includes(pid);
-    // Is this player's turn to draw from someone?
-    // They draw from the player before them
-    // currentTurn player draws from prev active player
-    const canDrawFrom = isMyTurn ? false : false;
-    // If it's MY turn, I draw from the opponent whose turn just ended (prev)
-    // Actually in ババ抜き: current player draws from the NEXT player (clockwise)
-    // We mark which opponent I should draw from
-    const targetPid = getDrawTarget(gs);
     const isTarget = (pid === targetPid) && isMyTurn;
 
     const row = document.createElement('div');
@@ -681,6 +715,8 @@ function renderGame(gs, players) {
     hand.forEach((card, ci) => {
       const cb = document.createElement('div');
       cb.className = 'card-back' + (isTarget ? ' drawable' : '');
+      cb.style.width = cardW + 'px';
+      cb.style.height = cardH + 'px';
       if (isTarget) {
         cb.title = 'クリックしてカードを引く';
         cb.onclick = () => drawCard(pid, ci, gs, players);
@@ -728,8 +764,14 @@ function renderMyCards(hand) {
     const isRed = card.suit === '♥' || card.suit === '♦';
     const isJoker = card.rank === 'JOKER';
     div.className = 'card' + (isJoker ? ' joker' : (isRed ? ' red' : ' black'));
+    const imgUrl = rankImages[card.rank];
     if (isJoker) {
       div.innerHTML = `<div class="card-rank">🃏</div><div style="font-size:0.55rem;margin-top:2px;">JOKER</div>`;
+    } else if (imgUrl) {
+      div.innerHTML = `
+        <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
+        <img src="${imgUrl}" style="width:40px;height:44px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;" loading="lazy">
+      `;
     } else {
       div.innerHTML = `
         <div class="card-corner">${card.rank}<br>${card.suit}</div>
@@ -762,6 +804,9 @@ async function drawCard(fromPid, cardIndex, gs, players) {
   // Remove pairs from my hand
   const beforeLen = myHand.length;
   myHand = removePairs(myHand);
+
+  // 毎回シャッフル（どれがジョーカーか相手にわからないように）
+  myHand = shuffle(myHand);
   const pairedCount = (beforeLen - myHand.length) / 2;
 
   const logEntry = pairedCount > 0
@@ -817,7 +862,7 @@ function showResult(gs, players) {
     ...(loser ? [{ pid: loser, rank: finished.length + 1 }] : [])
   ];
 
-  const medals = ['🥇','🥈','🥉','4️⃣'];
+  const medals = ['🥇','🥈','🥉',...Array.from({length:27},(_,i)=>`${i+4}`)];
   const html = ranks.map(r => {
     const name = players[r.pid]?.name || r.pid;
     const isLast = r.rank === pids.length;
@@ -832,6 +877,18 @@ function showResult(gs, players) {
   document.getElementById('resultRankings').innerHTML = html;
   document.getElementById('resultScreen').classList.add('show');
 }
+
+// ===== PLAY AGAIN =====
+window.playAgain = async function() {
+  // ゲーム状態をリセットし全員を待機画面に戻す
+  await update(ref(db, 'rooms/' + ROOM), {
+    status: 'waiting',
+    gameState: null
+  });
+  document.getElementById('resultScreen').classList.remove('show');
+  document.getElementById('gameScreen').style.display = 'none';
+  document.getElementById('waitingScreen').style.display = 'flex';
+};
 
 // ===== TOAST =====
 function showToast(msg) {
@@ -854,12 +911,18 @@ onValue(ref(db, 'rooms/' + ROOM + '/gameState'), (snap) => {
 });
 
 onValue(ref(db, 'rooms/' + ROOM + '/status'), (snap) => {
-  if (snap.val() === 'playing') {
+  const status = snap.val();
+  if (status === 'playing') {
     get(ref(db, 'rooms/' + ROOM)).then(roomSnap => {
       if (!roomSnap.exists()) return;
       const room = roomSnap.val();
       if (room.gameState) startGameUI(room.gameState, room.players);
     });
+  } else if (status === 'waiting') {
+    // もう一回 — 全員を待機画面に戻す
+    document.getElementById('resultScreen').classList.remove('show');
+    document.getElementById('gameScreen').style.display = 'none';
+    document.getElementById('waitingScreen').style.display = 'flex';
   }
 });
 </script>
