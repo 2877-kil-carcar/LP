@@ -163,6 +163,26 @@
     background: rgba(201,168,76,0.05);
     box-shadow: 0 0 20px rgba(201,168,76,0.1);
   }
+  .opponent-row.draw-target {
+    border-color: #70e0a0;
+    background: rgba(45,138,86,0.12);
+    box-shadow: 0 0 24px rgba(112,224,160,0.25);
+    animation: targetPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes targetPulse {
+    0%,100% { box-shadow: 0 0 16px rgba(112,224,160,0.2); }
+    50%      { box-shadow: 0 0 32px rgba(112,224,160,0.5); }
+  }
+  .draw-target-label {
+    font-size: 0.7rem;
+    color: #70e0a0;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    margin-left: auto;
+    padding-left: 8px;
+    flex-shrink: 0;
+  }
   .opponent-row.eliminated {
     opacity: 0.4;
   }
@@ -192,8 +212,8 @@
 
   /* Card backs for opponents */
   .card-back {
-    width: 32px;
-    height: 46px;
+    width: 44px;
+    height: 62px;
     background: linear-gradient(135deg, #1a3a8a, #0d2060);
     border: 1.5px solid rgba(255,255,255,0.15);
     border-radius: 4px;
@@ -257,8 +277,8 @@
 
   /* Face-up card */
   .card {
-    width: 48px;
-    height: 68px;
+    width: 64px;
+    height: 90px;
     background: var(--card-white);
     border: 1.5px solid #ddd;
     border-radius: 6px;
@@ -670,7 +690,9 @@ function renderGame(gs, players) {
   // Turn indicator
   const ti = document.getElementById('turnIndicator');
   if (isMyTurn) {
-    ti.textContent = '🟢 あなたのターン — カードを引いてください';
+    const tpid = getDrawTarget(gs);
+    const tName = tpid ? (players[tpid]?.name || tpid) : '？';
+    ti.textContent = `🟢 あなたのターン — ${tName} から引いてください`;
     ti.className = 'turn-indicator my-turn';
   } else {
     const cName = players[currentPid]?.name || currentPid;
@@ -689,8 +711,8 @@ function renderGame(gs, players) {
   const targetPid = getDrawTarget(gs);
   // 大人数時はカードバックを小さく
   const totalPlayers = pids.length;
-  const cardW = totalPlayers > 10 ? 20 : totalPlayers > 6 ? 26 : 32;
-  const cardH = totalPlayers > 10 ? 29 : totalPlayers > 6 ? 37 : 46;
+  const cardW = totalPlayers > 10 ? 28 : totalPlayers > 6 ? 36 : 44;
+  const cardH = totalPlayers > 10 ? 40 : totalPlayers > 6 ? 51 : 62;
 
   pids.forEach((pid, i) => {
     if (pid === MY_PID) return;
@@ -701,13 +723,17 @@ function renderGame(gs, players) {
     const isTarget = (pid === targetPid) && isMyTurn;
 
     const row = document.createElement('div');
-    row.className = 'opponent-row' + (isActive ? ' active-turn' : '') + (isElim ? ' eliminated' : '');
+    row.className = 'opponent-row'
+      + (isActive ? ' active-turn' : '')
+      + (isElim ? ' eliminated' : '')
+      + (isTarget ? ' draw-target' : '');
     row.innerHTML = `
       <div class="opp-info">
         <div class="opp-name">${name}${isElim ? ' ✅' : ''}</div>
         <div class="opp-card-count">${hand.length}枚</div>
       </div>
       <div class="opp-cards" id="oppCards_${pid}"></div>
+      ${isTarget ? '<span class="draw-target-label">👆 ここから引く</span>' : ''}
     `;
     oppArea.appendChild(row);
 
@@ -770,7 +796,7 @@ function renderMyCards(hand) {
     } else if (imgUrl) {
       div.innerHTML = `
         <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
-        <img src="${imgUrl}" style="width:40px;height:44px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;" loading="lazy">
+        <img src="${imgUrl}" style="width:54px;height:60px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;" loading="lazy">
       `;
     } else {
       div.innerHTML = `
