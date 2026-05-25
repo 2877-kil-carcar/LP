@@ -482,6 +482,8 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, get, update, onValue, push, off } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getFirestore, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ===== INIT =====
 const params = new URLSearchParams(location.search);
@@ -507,29 +509,54 @@ document.getElementById('roomCodeDisplay').textContent = ROOM;
 document.getElementById('roomCodeSmall').textContent = ROOM;
 
 // ===== GALLERY IMAGES FOR CARD FACES =====
-// index.html（ギャラリー）がlocalStorageに保存したURLを使う
 let rankImages = {};
 
-function loadGalleryImages() {
+function assignRankImages(urls) {
+  const shuffled = [...urls];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  ['A','2','3','4','5','6','7','8','9','10','J','Q','K'].forEach((rank, i) => {
+    rankImages[rank] = shuffled[i % shuffled.length];
+  });
+}
+
+async function loadGalleryImages() {
+  // ① まずlocalStorage（ギャラリーページを開いていれば即取得できる）
   try {
     const stored = localStorage.getItem('gallery_image_urls');
-    if (!stored) return;
-    let urls = JSON.parse(stored).filter(Boolean);
-    if (urls.length === 0) return;
-    // シャッフルしてランクに割り当て
-    for (let i = urls.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [urls[i], urls[j]] = [urls[j], urls[i]];
+    if (stored) {
+      const urls = JSON.parse(stored).filter(Boolean);
+      if (urls.length > 0) { assignRankImages(urls); return; }
     }
-    const RANK_KEYS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-    RANK_KEYS.forEach((rank, i) => {
-      rankImages[rank] = urls[i % urls.length];
-    });
+  } catch(e) {}
+
+  // ② なければFirestoreから直接取得
+  try {
+    const galleryApp = initializeApp({
+      apiKey: "AIzaSyBz1xFi1N4kIlxQa0mxAAgw1U5aG6eJhrU",
+      authDomain: "mofmof-gallery.firebaseapp.com",
+      projectId: "mofmof-gallery",
+    }, 'gallery-' + Date.now());
+    const auth = getAuth(galleryApp);
+    const fsdb = getFirestore(galleryApp);
+    await signInAnonymously(auth);
+    const snap = await getDocs(query(collection(fsdb, 'images'), limit(52)));
+    const urls = snap.docs.map(d => d.data().thumbUrl || d.data().url).filter(Boolean);
+    if (urls.length === 0) return;
+    localStorage.setItem('gallery_image_urls', JSON.stringify(urls));
+    assignRankImages(urls);
+    // ゲームが始まっていたら手札を再描画
+    if (gameState && document.getElementById('gameScreen').style.display === 'block') {
+      const ps = await get(ref(db, 'rooms/' + ROOM + '/players'));
+      renderGame(gameState, ps.val() || {});
+    }
   } catch(e) {
-    console.warn('ギャラリー画像の読み込み失敗:', e);
+    console.warn('ギャラリー画像取得失敗（テキスト表示）:', e);
   }
 }
-loadGalleryImages(); // 同期処理なのでゲーム開始前に確実に完了する
+loadGalleryImages();
 
 // ===== CARD LOGIC =====
 const SUITS = ['♠','♥','♦','♣'];
@@ -796,7 +823,7 @@ function renderMyCards(hand) {
     } else if (imgUrl) {
       div.innerHTML = `
         <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
-        <img src="${imgUrl}" style="width:54px;height:60px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;" loading="lazy">
+        <img src="${imgUrl}" style="width:54px;height:60px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
       `;
     } else {
       div.innerHTML = `
