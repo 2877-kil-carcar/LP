@@ -813,7 +813,7 @@ function renderMyHand(gs, isMyTurn, players) {
   if (jokerMode) {
     jokerBtn.style.display = 'none';
     jokerCancelBtn.style.display = 'block';
-  } else if (isMyTurn && playableCards.length === 0 && hasJokerInHand && !hasForcedPlay) {
+  } else if (isMyTurn && hasJokerInHand && !hasForcedPlay) {
     jokerBtn.style.display = 'block';
     jokerCancelBtn.style.display = 'none';
   } else {
@@ -834,7 +834,7 @@ function renderMyHand(gs, isMyTurn, players) {
 
     if (isJoker) {
       // ジョーカーカードの描画（強制プレイ中は使用不可）
-      const canUseJoker = isMyTurn && playableCards.length === 0 && !hasForcedPlay;
+      const canUseJoker = isMyTurn && !hasForcedPlay;
       div.className = 'hand-card joker-card' + (canUseJoker ? ' joker-usable' : '');
       div.innerHTML = `<div style="font-size:1.5rem;line-height:1;">🃏</div><div style="font-size:0.5rem;color:#c090ff;margin-top:4px;">JOKER</div>`;
       if (canUseJoker) {
