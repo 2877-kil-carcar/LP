@@ -576,6 +576,7 @@ async function startGame(room) {
     cardImages: rankImages,  // ホストの画像URLを全プレイヤーに配布
     rules: { joker: !!rules.joker, akAdjacent: !!rules.akAdjacent },
     jokerPositions: [],      // ジョーカーが置かれたボード上の位置
+    jokerForced: [],         // ジョーカー強制プレイ: [{suit, num, isWrap, pid}]
     logs: ['ゲーム開始！7はすべて場に出ました。' + (rules.joker ? ' 🃏ジョーカーあり' : '') + (rules.akAdjacent ? ' 🔄AK隣接あり' : '')]
   };
 
@@ -610,7 +611,13 @@ function renderGame(gs, players) {
     ti.className = 'turn-indicator';
   } else if (isMyTurn) {
     const passesLeft = 5 - (gs.passes?.[MY_PID] || 0);
-    ti.textContent = `🟢 あなたのターン — パス残り${passesLeft}回`;
+    const myForcedInTurn = (gs.jokerForced || []).filter(f => f.pid === MY_PID);
+    if (myForcedInTurn.length > 0) {
+      const labels = myForcedInTurn.map(f => `${f.suit}${RANKS[f.num - 1] || f.num}`).join('・');
+      ti.textContent = `🟢 あなたのターン — 🃏強制: ${labels} を出してください`;
+    } else {
+      ti.textContent = `🟢 あなたのターン — パス残り${passesLeft}回`;
+    }
     ti.className = 'turn-indicator my-turn';
   } else {
     ti.textContent = `⏳ ${players[currentPid]?.name || ''} のターン`;
@@ -780,27 +787,33 @@ function renderMyHand(gs, isMyTurn, players) {
 
   const board = gs.board;
   const rules = gs.rules || {};
+  // ジョーカー強制チェック
+  const jokerForcedList = gs.jokerForced || [];
+  const myForcedPlays = jokerForcedList.filter(f => f.pid === MY_PID);
+  const hasForcedPlay = myForcedPlays.length > 0;
+
   const playableCards = hand.filter(c => isCardPlayable(c, board, rules));
-  const hasPlayable = playableCards.length > 0;
+  // 強制カードがある場合はそれを「出せるカード」として扱う
+  const hasPlayable = playableCards.length > 0 || hasForcedPlay;
   const hasJokerInHand = hand.some(c => c.rank === 'JOKER');
   const passesUsed = gs.passes?.[MY_PID] || 0;
   const passesLeft = 5 - passesUsed;
   const jokerBtn = document.getElementById('jokerBtn');
   const jokerCancelBtn = document.getElementById('jokerCancelBtn');
 
-  // パスボタン: 自分のターン・パス残り・ジョーカーモードでない
-  if (isMyTurn && !jokerMode && passesLeft > 0) {
+  // パスボタン: 自分のターン・パス残り・ジョーカーモードでない・強制プレイなし
+  if (isMyTurn && !jokerMode && passesLeft > 0 && !hasForcedPlay) {
     passBtn.style.display = 'block';
     passBtn.textContent = `パス（残り${passesLeft}回）`;
   } else {
     passBtn.style.display = 'none';
   }
 
-  // ジョーカーボタン: 自分のターン・出せるカードなし・ジョーカーあり
+  // ジョーカーボタン: 自分のターン・出せるカードなし・ジョーカーあり・強制プレイなし
   if (jokerMode) {
     jokerBtn.style.display = 'none';
     jokerCancelBtn.style.display = 'block';
-  } else if (isMyTurn && !hasPlayable && hasJokerInHand) {
+  } else if (isMyTurn && playableCards.length === 0 && hasJokerInHand && !hasForcedPlay) {
     jokerBtn.style.display = 'block';
     jokerCancelBtn.style.display = 'none';
   } else {
@@ -808,8 +821,8 @@ function renderMyHand(gs, isMyTurn, players) {
     jokerCancelBtn.style.display = 'none';
   }
 
-  // 脱落ボタン: パス0 かつ 出せるカードなし かつ ジョーカーなし
-  if (isMyTurn && !jokerMode && passesLeft <= 0 && !hasPlayable && !hasJokerInHand) {
+  // 脱落ボタン: パス0 かつ 出せるカードなし かつ ジョーカーなし かつ 強制プレイなし
+  if (isMyTurn && !jokerMode && passesLeft <= 0 && !hasPlayable && !hasJokerInHand && !hasForcedPlay) {
     elimBtn.style.display = 'block';
   } else {
     elimBtn.style.display = 'none';
@@ -820,8 +833,8 @@ function renderMyHand(gs, isMyTurn, players) {
     const isJoker = card.rank === 'JOKER';
 
     if (isJoker) {
-      // ジョーカーカードの描画
-      const canUseJoker = isMyTurn && !hasPlayable;
+      // ジョーカーカードの描画（強制プレイ中は使用不可）
+      const canUseJoker = isMyTurn && playableCards.length === 0 && !hasForcedPlay;
       div.className = 'hand-card joker-card' + (canUseJoker ? ' joker-usable' : '');
       div.innerHTML = `<div style="font-size:1.5rem;line-height:1;">🃏</div><div style="font-size:0.5rem;color:#c090ff;margin-top:4px;">JOKER</div>`;
       if (canUseJoker) {
@@ -830,7 +843,12 @@ function renderMyHand(gs, isMyTurn, players) {
       }
     } else {
       const isRed = card.suit === '♥' || card.suit === '♦';
-      const canPlay = isMyTurn && isCardPlayable(card, board, rules);
+      // 強制プレイ中は強制カードのみ出せる、それ以外は通常判定
+      const canPlay = isMyTurn && (
+        hasForcedPlay
+          ? myForcedPlays.some(f => f.suit === card.suit && f.num === card.num)
+          : isCardPlayable(card, board, rules)
+      );
       div.className = 'hand-card' + (isRed ? ' red' : ' black') + (canPlay ? ' playable' : ' not-playable');
       const imgUrl = rankImages[card.rank];
       if (imgUrl) {
@@ -861,8 +879,38 @@ async function playCard(card, gs, players) {
   if (card.rank === 'JOKER') return; // ジョーカーは別途処理
 
   const rules = gs.rules || {};
+
+  // ジョーカー強制チェック
+  const jokerForcedList = gs.jokerForced || [];
+  const myForcedPlays = jokerForcedList.filter(f => f.pid === MY_PID);
+  const hasForcedPlay = myForcedPlays.length > 0;
+  const isForced = hasForcedPlay && myForcedPlays.some(f => f.suit === card.suit && f.num === card.num);
+
+  // 出せないカードは弾く（強制カード以外は通常チェック）
+  if (!isForced && !isCardPlayable(card, gs.board, rules)) return;
+
   const newBoard = JSON.parse(JSON.stringify(gs.board));
-  updateBoardForCard(newBoard, card, rules); // AK隣接を考慮したボード更新
+  // 強制カード: ボードはジョーカー配置時に既に更新済みなのでスキップ
+  // 通常カード: ボードを更新
+  if (!isForced) {
+    updateBoardForCard(newBoard, card, rules);
+  }
+
+  // ジョーカー強制・ジョーカー位置の解除
+  const newJokerForced = [...jokerForcedList];
+  const newJokerPositions = [...(gs.jokerPositions || [])];
+  if (isForced) {
+    const fIdx = newJokerForced.findIndex(f => f.pid === MY_PID && f.suit === card.suit && f.num === card.num);
+    if (fIdx !== -1) {
+      const forced = newJokerForced[fIdx];
+      newJokerForced.splice(fIdx, 1);
+      // ジョーカー表示も除去（実際のカードが置かれたため）
+      const jIdx = newJokerPositions.findIndex(
+        j => j.suit === forced.suit && j.num === forced.num && (j.isWrap || null) === (forced.isWrap || null)
+      );
+      if (jIdx !== -1) newJokerPositions.splice(jIdx, 1);
+    }
+  }
 
   const myHand = (gs.hands[MY_PID] || []).filter(c => c.id !== card.id);
 
@@ -885,12 +933,15 @@ async function playCard(card, gs, players) {
   const activePids = pids.filter(p => !skipped.includes(p));
   const gameOver = activePids.length <= 1;
 
-  const log = `${MY_NAME} が ${card.rank}${card.suit} を出した`;
+  const forcedTag = isForced ? ' (🃏強制)' : '';
+  const log = `${MY_NAME} が ${card.rank}${card.suit} を出した${forcedTag}`;
   const newLogs = [...(gs.logs || []), log].slice(-30);
 
   await update(ref(db, 'rooms_sevens/' + ROOM + '/gameState'), {
     [`hands/${MY_PID}`]: myHand,
     board: newBoard,
+    jokerForced: newJokerForced,
+    jokerPositions: newJokerPositions,
     currentTurn: nextTurn % pids.length,
     finished: newFinished,
     gameOver,
@@ -926,7 +977,7 @@ window._cancelJokerMode = function() {
   });
 };
 
-// ジョーカーをボードの target 位置に置く（自動配置カスケード付き）
+// ジョーカーをボードの target 位置に置く（その位置のカードを持つ人は強制プレイ）
 window._placeJoker = async function(target) {
   if (!jokerMode || !activeJokerCard) return;
   const gs = gameState;
@@ -940,7 +991,6 @@ window._placeJoker = async function(target) {
 
   const rules = gs.rules || {};
   const newBoard = JSON.parse(JSON.stringify(gs.board));
-  const newHands = JSON.parse(JSON.stringify(gs.hands));
   const newJokerPositions = [...(gs.jokerPositions || [])];
 
   // ジョーカーをボードに適用
@@ -957,6 +1007,7 @@ window._placeJoker = async function(target) {
   newJokerPositions.push({ suit, num, isWrap: isWrap || null });
 
   // ジョーカーを手札から除去
+  const newHands = JSON.parse(JSON.stringify(gs.hands));
   newHands[MY_PID] = newHands[MY_PID].filter(c => c.id !== jokerCard.id);
 
   // プレイヤー名取得
@@ -966,37 +1017,23 @@ window._placeJoker = async function(target) {
   const rankName = isWrap === 'aAboveK' ? 'A(K上)' : isWrap === 'kBelowA' ? 'K(A下)' : RANKS[num - 1] || num;
   const newLogs = [...(gs.logs || []), `🃏 ${MY_NAME} がジョーカーを ${suit}${rankName} に使用`];
 
-  // 自動配置カスケード: 新たに出せるカードを全プレイヤー分繰り返し配置
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const pid of pids) {
-      const toPlay = (newHands[pid] || []).filter(c => isCardPlayable(c, newBoard, rules));
-      for (const card of toPlay) {
-        updateBoardForCard(newBoard, card, rules);
-        newHands[pid] = newHands[pid].filter(c => c.id !== card.id);
-        newLogs.push(`✨ ${players[pid]?.name || pid} の ${card.rank}${card.suit} が自動配置！`);
-        changed = true;
-      }
+  // その位置のカードを持つプレイヤーを特定 → 強制プレイをセット
+  const newJokerForced = [...(gs.jokerForced || [])];
+  let forcedPid = null;
+  for (const pid of pids) {
+    if ((newHands[pid] || []).some(c => c.suit === suit && c.num === num)) {
+      forcedPid = pid; break;
     }
   }
+  if (forcedPid) {
+    newJokerForced.push({ suit, num, isWrap: isWrap || null, pid: forcedPid });
+    newLogs.push(`⚠️ ${players[forcedPid]?.name || forcedPid} は ${suit}${rankName} しか出せない！`);
+  }
 
-  // あがり判定
-  const newFinished = [...(gs.finished || [])];
-  pids.forEach(pid => {
-    const remaining = (newHands[pid] || []).filter(c => c.rank !== 'JOKER');
-    const jokerCount = (newHands[pid] || []).filter(c => c.rank === 'JOKER').length;
-    if (remaining.length === 0 && !newFinished.includes(pid) && !(gs.eliminated || []).includes(pid)) {
-      // ジョーカーが残っていても手札が0なら「あがり」（ジョーカーは消える）
-      newHands[pid] = []; // ジョーカー含め全削除
-      newFinished.push(pid);
-      if (pid === MY_PID) showToast('🎉 あがり！');
-    }
-  });
-
-  // 次ターン
+  // 次ターン（ジョーカー使用者のターン終了）
   const eliminated = gs.eliminated || [];
-  const skipped = [...newFinished, ...eliminated];
+  const finished = gs.finished || [];
+  const skipped = [...finished, ...eliminated];
   let nextTurn = gs.currentTurn + 1;
   for (let i = 0; i < pids.length; i++) {
     if (!skipped.includes(pids[nextTurn % pids.length])) break;
@@ -1006,10 +1043,10 @@ window._placeJoker = async function(target) {
   const gameOver = activePids.length <= 1;
 
   await update(ref(db, 'rooms_sevens/' + ROOM + '/gameState'), {
-    hands: newHands,
+    [`hands/${MY_PID}`]: newHands[MY_PID],
     board: newBoard,
     jokerPositions: newJokerPositions,
-    finished: newFinished,
+    jokerForced: newJokerForced,
     currentTurn: nextTurn % pids.length,
     gameOver,
     logs: newLogs.slice(-30)
