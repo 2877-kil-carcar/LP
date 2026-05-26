@@ -133,6 +133,39 @@
   .card-corner { position:absolute; top:3px; left:4px; font-size:0.58rem; font-weight:700; line-height:1.2; text-align:center; }
   .card-rank { font-size:1rem; font-weight:700; line-height:1; }
   .card-suit { font-size:1.1rem; }
+  /* ジョーカー手札 */
+  .hand-card.joker-card { background:linear-gradient(135deg,#2a1a4e,#180a3a); border-color:rgba(160,100,255,0.6); }
+  .hand-card.joker-card.joker-usable { box-shadow:0 0 14px rgba(150,90,240,0.55); cursor:pointer; }
+  .hand-card.joker-card.joker-usable:hover { transform:translateY(-10px); }
+  /* ジョーカーボードチップ */
+  .board-chip.joker-pos { background:rgba(140,70,230,0.55); border-color:rgba(160,100,255,0.8); color:#f0e0ff; }
+  .board-chip.joker-target { border-color:rgba(150,90,240,0.85); cursor:pointer; animation:jokerGlow 0.9s ease-in-out infinite; }
+  .board-chip.joker-target:hover { background:rgba(120,60,220,0.5); }
+  @keyframes jokerGlow { 0%,100%{background:rgba(100,40,180,0.06);} 50%{background:rgba(120,60,220,0.32);} }
+  /* AK隣接チップ */
+  .board-chip.ak-playable { border-color:rgba(240,208,128,0.75); animation:akGlow 1.2s ease-in-out infinite; }
+  .board-chip.ak-played { background:rgba(201,168,76,0.38); border-color:rgba(201,168,76,0.7); color:var(--gold-light); }
+  @keyframes akGlow { 0%,100%{background:rgba(201,168,76,0.04);} 50%{background:rgba(201,168,76,0.22);} }
+  /* ジョーカーアクションボタン */
+  .joker-btn { display:none; width:100%; margin-top:6px; padding:12px; background:rgba(100,40,180,0.14); border:1px solid rgba(150,90,240,0.45); border-radius:8px; color:#c090ff; font-family:'Noto Sans JP',sans-serif; font-size:0.85rem; cursor:pointer; transition:all 0.2s; }
+  .joker-btn:hover { background:rgba(120,60,220,0.3); color:#ddaaff; }
+  .joker-cancel { display:none; width:100%; margin-top:6px; padding:9px; background:transparent; border:1px solid rgba(150,90,240,0.3); border-radius:8px; color:rgba(180,130,255,0.65); font-family:'Noto Sans JP',sans-serif; font-size:0.78rem; cursor:pointer; }
+  /* ルール設定トグル（待機画面・ホストのみ） */
+  .rules-config { width:100%; max-width:360px; margin:12px 0 0; display:none; }
+  .toggle-row { display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.04); border:1px solid rgba(201,168,76,0.15); border-radius:8px; padding:10px 14px; margin-bottom:6px; }
+  .toggle-label { font-size:0.82rem; color:var(--cream); }
+  .toggle-desc { font-size:0.68rem; color:rgba(245,240,232,0.38); margin-top:2px; }
+  .toggle-switch { position:relative; width:40px; height:22px; flex-shrink:0; margin-left:12px; }
+  .toggle-switch input { opacity:0; width:0; height:0; position:absolute; }
+  .toggle-slider { position:absolute; cursor:pointer; inset:0; background:rgba(255,255,255,0.14); border-radius:22px; transition:0.3s; }
+  .toggle-slider:before { position:absolute; content:""; height:16px; width:16px; left:3px; bottom:3px; background:white; border-radius:50%; transition:0.3s; }
+  input:checked + .toggle-slider { background:var(--green-light); }
+  input:checked + .toggle-slider:before { transform:translateX(18px); }
+  /* アクティブルールバッジ */
+  .active-rules { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin:8px 0 0; min-height:20px; }
+  .rule-badge { font-size:0.7rem; padding:3px 9px; border-radius:20px; }
+  .rule-badge.joker { background:rgba(120,60,220,0.18); border:1px solid rgba(150,90,240,0.4); color:#c090ff; }
+  .rule-badge.ak { background:rgba(201,168,76,0.12); border:1px solid rgba(201,168,76,0.35); color:var(--gold); }
 
   /* Pass button */
   .pass-btn {
@@ -187,8 +220,32 @@
   <p class="waiting-title">七並べ Online</p>
   <div class="waiting-hint">ルームコードを友達に教えよう</div>
   <div class="room-code-display" id="roomCodeDisplay">----</div>
+  <div class="active-rules" id="activeRulesDisplay"></div>
   <div class="player-slots" id="playerSlots"></div>
   <div class="waiting-status" id="waitingStatus">プレイヤーを待っています...</div>
+  <!-- ルール設定（ホストのみ表示） -->
+  <div class="rules-config" id="ruleToggles">
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">🃏 ジョーカー</div>
+        <div class="toggle-desc">手札がないとき任意の位置に出せる（2枚）。使い切れない場合は負け</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="ruleJoker" onchange="window.updateRules()">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">🔄 AK隣接</div>
+        <div class="toggle-desc">KのあとにA、AのあとにKを出せる（循環）</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="ruleAkAdjacent" onchange="window.updateRules()">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
   <button id="startBtn" onclick="hostStartGame()">ゲームを開始する 🃏</button>
   <div id="waitingForHost">ホストがゲームを開始するまで待ってください...</div>
   <button class="leave-btn" onclick="window._leaveRoom()">← 退出する</button>
@@ -215,6 +272,8 @@
       </div>
       <div class="my-cards" id="myCards"></div>
       <button class="pass-btn" id="passBtn" onclick="window._passClick()">パス（残り5回）</button>
+      <button class="joker-btn" id="jokerBtn" onclick="window._startJokerMode()">🃏 ジョーカーを使う — ボードで位置を選択</button>
+      <button class="joker-cancel" id="jokerCancelBtn" onclick="window._cancelJokerMode()">✕ ジョーカーをキャンセル</button>
       <button class="elim-btn" id="elimBtn" onclick="window._eliminatePlayer()">💀 脱落 — 手札を全て場に出す</button>
     </div>
 
@@ -239,6 +298,8 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getFirestore, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 // ===== INIT =====
 const params = new URLSearchParams(location.search);
@@ -263,16 +324,67 @@ const roomRef = ref(db, 'rooms_sevens/' + ROOM);
 document.getElementById('roomCodeDisplay').textContent = ROOM;
 document.getElementById('roomCodeSmall').textContent = ROOM;
 
+// ===== GALLERY IMAGES FOR CARD FACES =====
+// ババ抜きと同じ方式: ホストが画像URLをFirebaseに乗せて全員に配布
+// → localStorageやFirestoreへのアクセスは「ホストのみ」で行い、
+//    他プレイヤーはRTDB経由で受け取る（複数人で画像が見えないバグを防止）
+let rankImages = {};
+
+function assignRankImages(urls) {
+  const shuffled = [...urls];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  ['A','2','3','4','5','6','7','8','9','10','J','Q','K'].forEach((rank, i) => {
+    rankImages[rank] = shuffled[i % shuffled.length];
+  });
+}
+
+async function loadGalleryImages() {
+  // ① localStorageから（ギャラリーページを開いていれば即取得）
+  try {
+    const stored = localStorage.getItem('gallery_image_urls');
+    if (stored) {
+      const urls = JSON.parse(stored).filter(Boolean);
+      if (urls.length > 0) { assignRankImages(urls); return; }
+    }
+  } catch(e) {}
+
+  // ② なければFirestoreから直接取得
+  try {
+    const galleryApp = initializeApp({
+      apiKey: "AIzaSyBz1xFi1N4kIlxQa0mxAAgw1U5aG6eJhrU",
+      authDomain: "mofmof-gallery.firebaseapp.com",
+      projectId: "mofmof-gallery",
+    }, 'gallery-sevens-' + Date.now());
+    const auth = getAuth(galleryApp);
+    const fsdb = getFirestore(galleryApp);
+    await signInAnonymously(auth);
+    const snap = await getDocs(query(collection(fsdb, 'images'), limit(52)));
+    const urls = snap.docs.map(d => d.data().thumbUrl || d.data().url).filter(Boolean);
+    if (urls.length === 0) return;
+    localStorage.setItem('gallery_image_urls', JSON.stringify(urls));
+    assignRankImages(urls);
+  } catch(e) {
+    console.warn('ギャラリー画像取得失敗（テキスト表示）:', e);
+  }
+}
+
 // ===== CARD CONSTANTS =====
 const SUITS = ['♠','♥','♦','♣'];
 const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const RANK_TO_NUM = { 'A':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'10':10,'J':11,'Q':12,'K':13 };
 
-function createDeck() {
+function createDeck(jokerEnabled = false) {
   const deck = [];
   for (const suit of SUITS)
     for (const rank of RANKS)
       deck.push({ suit, rank, num: RANK_TO_NUM[rank], id: suit + rank });
+  if (jokerEnabled) {
+    deck.push({ suit: 'JOKER', rank: 'JOKER', num: 0, id: 'JOKER1' });
+    deck.push({ suit: 'JOKER', rank: 'JOKER', num: 0, id: 'JOKER2' });
+  }
   return deck;
 }
 
@@ -285,10 +397,57 @@ function shuffle(arr) {
   return a;
 }
 
-function isCardPlayable(card, board) {
+// ルールを考慮したカードの出せる判定
+function isCardPlayable(card, board, rules = {}) {
+  if (card.rank === 'JOKER') return false; // ジョーカーは別途処理
   const s = board[card.suit];
   if (!s) return false;
-  return card.num === s.min - 1 || card.num === s.max + 1;
+  // 通常の隣接判定
+  if (card.num === s.min - 1 || card.num === s.max + 1) return true;
+  // AK隣接ルール: Kの上にA、Aの下にKを出せる（1回のみ）
+  if (rules.akAdjacent) {
+    if (s.max === 13 && !s.aAboveK && card.num === 1) return true;  // AをKの上に
+    if (s.min === 1  && !s.kBelowA && card.num === 13) return true; // KをAの下に
+  }
+  return false;
+}
+
+// ボードをカードに合わせて更新（AK隣接を考慮）
+function updateBoardForCard(newBoard, card, rules = {}) {
+  if (card.rank === 'JOKER') return;
+  const s = newBoard[card.suit];
+  if (rules.akAdjacent) {
+    if (card.num === 1 && s.max === 13 && !s.aAboveK) {
+      newBoard[card.suit].aAboveK = true; return; // A をK上に配置
+    }
+    if (card.num === 13 && s.min === 1 && !s.kBelowA) {
+      newBoard[card.suit].kBelowA = true; return; // K をA下に配置
+    }
+  }
+  if (card.num < s.min) newBoard[card.suit].min = card.num;
+  else newBoard[card.suit].max = card.num;
+}
+
+// ジョーカーが置ける全候補を返す
+function getJokerTargets(board, rules = {}) {
+  const targets = [];
+  for (const suit of SUITS) {
+    const s = board[suit];
+    if (!s) continue;
+    if (s.min > 1)  targets.push({ suit, num: s.min - 1 });
+    if (s.max < 13) targets.push({ suit, num: s.max + 1 });
+    if (rules.akAdjacent) {
+      if (s.max === 13 && !s.aAboveK) targets.push({ suit, num: 1,  isWrap: 'aAboveK' });
+      if (s.min === 1  && !s.kBelowA) targets.push({ suit, num: 13, isWrap: 'kBelowA' });
+    }
+  }
+  // 重複除去
+  const seen = new Set();
+  return targets.filter(t => {
+    const k = `${t.suit}-${t.num}-${t.isWrap||''}`;
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
 }
 
 // ===== STATE =====
@@ -331,7 +490,34 @@ onValue(roomRef, async (snap) => {
   ws.textContent = canStart ? `${pids.length} 人が参加中` : `${pids.length} 人参加中 — あと${2-pids.length}人待ち`;
   document.getElementById('startBtn').style.display = (isHost && canStart) ? 'block' : 'none';
   document.getElementById('waitingForHost').style.display = isHost ? 'none' : 'block';
+
+  // ルール表示（全員に表示）
+  const rules = room.rules || {};
+  const rulesEl = document.getElementById('activeRulesDisplay');
+  if (rulesEl) {
+    rulesEl.innerHTML = '';
+    if (rules.joker) rulesEl.innerHTML += `<span class="rule-badge joker">🃏 ジョーカー</span>`;
+    if (rules.akAdjacent) rulesEl.innerHTML += `<span class="rule-badge ak">🔄 AK隣接</span>`;
+  }
+  // ルールトグル（ホストのみ）
+  const ruleToggles = document.getElementById('ruleToggles');
+  if (ruleToggles) {
+    ruleToggles.style.display = isHost ? 'block' : 'none';
+    if (isHost) {
+      document.getElementById('ruleJoker').checked = !!rules.joker;
+      document.getElementById('ruleAkAdjacent').checked = !!rules.akAdjacent;
+    }
+  }
 });
+
+// ===== RULE TOGGLES (ホストのみ) =====
+window.updateRules = async function() {
+  const joker = document.getElementById('ruleJoker').checked;
+  const akAdjacent = document.getElementById('ruleAkAdjacent').checked;
+  try {
+    await update(roomRef, { rules: { joker, akAdjacent } });
+  } catch(e) { console.error(e); }
+};
 
 // ===== LEAVE ROOM =====
 window._leaveRoom = async function() {
@@ -363,15 +549,17 @@ window.hostStartGame = async function() {
 };
 
 async function startGame(room) {
+  await loadGalleryImages(); // ホストが画像URLを収集してgsに同梱する
+  const rules = room.rules || { joker: false, akAdjacent: false };
   const pids = Object.keys(room.players);
-  const deck = shuffle(createDeck());
+  const deck = shuffle(createDeck(rules.joker)); // ジョーカールール有効時は2枚追加
 
   // 配る
   const hands = {};
   pids.forEach(pid => { hands[pid] = []; });
   deck.forEach((card, i) => { hands[pids[i % pids.length]].push(card); });
 
-  // 7を全部場に出す（手札から除去）
+  // 7を全部場に出す（手札から除去）。ジョーカーは手札に残す
   const board = { '♠':{min:7,max:7}, '♥':{min:7,max:7}, '♦':{min:7,max:7}, '♣':{min:7,max:7} };
   pids.forEach(pid => { hands[pid] = hands[pid].filter(c => c.rank !== '7'); });
 
@@ -385,7 +573,10 @@ async function startGame(room) {
     eliminated: [],
     finished: [],
     gameOver: false,
-    logs: ['ゲーム開始！7はすべて場に出ました。']
+    cardImages: rankImages,  // ホストの画像URLを全プレイヤーに配布
+    rules: { joker: !!rules.joker, akAdjacent: !!rules.akAdjacent },
+    jokerPositions: [],      // ジョーカーが置かれたボード上の位置
+    logs: ['ゲーム開始！7はすべて場に出ました。' + (rules.joker ? ' 🃏ジョーカーあり' : '') + (rules.akAdjacent ? ' 🔄AK隣接あり' : '')]
   };
 
   await update(ref(db, 'rooms_sevens/' + ROOM), { status: 'playing', gameState: gs });
@@ -401,6 +592,8 @@ function startGameUI(gs, players) {
 // ===== RENDER =====
 function renderGame(gs, players) {
   if (!gs) return;
+  // ホストがRTDB経由で配布した画像URLをセット（全員共通 → 複数人バグ対策）
+  if (gs.cardImages) rankImages = gs.cardImages;
   const pids = gs.pids;
   myIndex = pids.indexOf(MY_PID);
   const currentPid = pids[gs.currentTurn % pids.length];
@@ -444,10 +637,13 @@ function renderBoard(gs) {
   const boardEl = document.getElementById('boardSection');
   boardEl.innerHTML = '';
   const board = gs.board;
+  const rules = gs.rules || {};
+  const jokerPositions = gs.jokerPositions || [];
+  const jokerTargets = jokerMode ? getJokerTargets(board, rules) : [];
 
   SUITS.forEach(suit => {
     const isRed = suit === '♥' || suit === '♦';
-    const suitData = board[suit];
+    const s = board[suit];
 
     const row = document.createElement('div');
     row.className = 'board-row';
@@ -464,15 +660,54 @@ function renderBoard(gs) {
       const num = RANK_TO_NUM[rank];
       const chip = document.createElement('div');
       let cls = 'board-chip';
+      let chipText = rank;
+      let chipClick = null;
+
+      // ジョーカーが置かれているか確認
+      const hasJoker = jokerPositions.some(j =>
+        j.suit === suit && j.num === num && !j.isWrap
+      );
+      const hasJokerWrapAK = jokerPositions.some(j =>
+        j.suit === suit && (
+          (j.isWrap === 'aAboveK' && num === 1) ||
+          (j.isWrap === 'kBelowA' && num === 13)
+        )
+      );
+
       if (rank === '7') {
         cls += ' seven';
-      } else if (suitData && num >= suitData.min && num <= suitData.max) {
+      } else if (hasJoker || hasJokerWrapAK) {
+        cls += ' joker-pos'; chipText = '🃏';
+      } else if (s && num >= s.min && num <= s.max) {
         cls += ' played';
-      } else if (suitData && (num === suitData.min - 1 || num === suitData.max + 1)) {
-        cls += ' playable-pos';
+      } else if (s && s.aAboveK && num === 1) {
+        cls += ' ak-played'; // AK隣接でAがK上に配置済み
+      } else if (s && s.kBelowA && num === 13) {
+        cls += ' ak-played'; // AK隣接でKがA下に配置済み
+      } else {
+        if (jokerMode) {
+          // ジョーカーモード: 置ける位置を強調・クリック可能
+          const target = jokerTargets.find(t => t.suit === suit && t.num === num);
+          if (target) {
+            cls += ' joker-target';
+            chipClick = () => window._placeJoker(target);
+          }
+        } else if (s) {
+          // 通常の出せる位置
+          if (num === s.min - 1 || num === s.max + 1) {
+            cls += ' playable-pos';
+          }
+          // AK隣接: 出せるAK位置
+          if (rules.akAdjacent) {
+            if (s.max === 13 && !s.aAboveK && num === 1)  cls += ' ak-playable';
+            if (s.min === 1  && !s.kBelowA && num === 13) cls += ' ak-playable';
+          }
+        }
       }
+
       chip.className = cls;
-      chip.textContent = rank;
+      chip.textContent = chipText;
+      if (chipClick) chip.onclick = chipClick;
       chips.appendChild(chip);
     });
 
@@ -544,21 +779,37 @@ function renderMyHand(gs, isMyTurn, players) {
   }
 
   const board = gs.board;
-  const playableCards = hand.filter(c => isCardPlayable(c, board));
+  const rules = gs.rules || {};
+  const playableCards = hand.filter(c => isCardPlayable(c, board, rules));
   const hasPlayable = playableCards.length > 0;
+  const hasJokerInHand = hand.some(c => c.rank === 'JOKER');
   const passesUsed = gs.passes?.[MY_PID] || 0;
   const passesLeft = 5 - passesUsed;
+  const jokerBtn = document.getElementById('jokerBtn');
+  const jokerCancelBtn = document.getElementById('jokerCancelBtn');
 
-  // パスボタン: 自分のターンでパスが残っているとき表示
-  if (isMyTurn && passesLeft > 0) {
+  // パスボタン: 自分のターン・パス残り・ジョーカーモードでない
+  if (isMyTurn && !jokerMode && passesLeft > 0) {
     passBtn.style.display = 'block';
     passBtn.textContent = `パス（残り${passesLeft}回）`;
   } else {
     passBtn.style.display = 'none';
   }
 
-  // 脱落ボタン: 自分のターンでパスが0 かつ 出せるカードもないとき表示
-  if (isMyTurn && passesLeft <= 0 && !hasPlayable) {
+  // ジョーカーボタン: 自分のターン・出せるカードなし・ジョーカーあり
+  if (jokerMode) {
+    jokerBtn.style.display = 'none';
+    jokerCancelBtn.style.display = 'block';
+  } else if (isMyTurn && !hasPlayable && hasJokerInHand) {
+    jokerBtn.style.display = 'block';
+    jokerCancelBtn.style.display = 'none';
+  } else {
+    jokerBtn.style.display = 'none';
+    jokerCancelBtn.style.display = 'none';
+  }
+
+  // 脱落ボタン: パス0 かつ 出せるカードなし かつ ジョーカーなし
+  if (isMyTurn && !jokerMode && passesLeft <= 0 && !hasPlayable && !hasJokerInHand) {
     elimBtn.style.display = 'block';
   } else {
     elimBtn.style.display = 'none';
@@ -566,17 +817,38 @@ function renderMyHand(gs, isMyTurn, players) {
 
   hand.forEach(card => {
     const div = document.createElement('div');
-    const isRed = card.suit === '♥' || card.suit === '♦';
-    const canPlay = isMyTurn && isCardPlayable(card, board);
-    div.className = 'hand-card' + (isRed ? ' red' : ' black') + (canPlay ? ' playable' : ' not-playable');
-    div.innerHTML = `
-      <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
-      <div class="card-rank">${card.rank}</div>
-      <div class="card-suit">${card.suit}</div>
-    `;
-    if (canPlay) {
-      div.title = `${card.rank}${card.suit} を出す`;
-      div.onclick = () => playCard(card, gs, players);
+    const isJoker = card.rank === 'JOKER';
+
+    if (isJoker) {
+      // ジョーカーカードの描画
+      const canUseJoker = isMyTurn && !hasPlayable;
+      div.className = 'hand-card joker-card' + (canUseJoker ? ' joker-usable' : '');
+      div.innerHTML = `<div style="font-size:1.5rem;line-height:1;">🃏</div><div style="font-size:0.5rem;color:#c090ff;margin-top:4px;">JOKER</div>`;
+      if (canUseJoker) {
+        div.title = 'ジョーカーを使う';
+        div.onclick = () => window._startJokerMode(card);
+      }
+    } else {
+      const isRed = card.suit === '♥' || card.suit === '♦';
+      const canPlay = isMyTurn && isCardPlayable(card, board, rules);
+      div.className = 'hand-card' + (isRed ? ' red' : ' black') + (canPlay ? ' playable' : ' not-playable');
+      const imgUrl = rankImages[card.rank];
+      if (imgUrl) {
+        div.innerHTML = `
+          <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
+          <img src="${imgUrl}" style="width:46px;height:50px;object-fit:cover;border-radius:3px;display:block;margin:0 auto;">
+        `;
+      } else {
+        div.innerHTML = `
+          <div class="card-corner">${card.rank}<br><span style="font-size:0.7em;">${card.suit}</span></div>
+          <div class="card-rank">${card.rank}</div>
+          <div class="card-suit">${card.suit}</div>
+        `;
+      }
+      if (canPlay) {
+        div.title = `${card.rank}${card.suit} を出す`;
+        div.onclick = () => playCard(card, gs, players);
+      }
     }
     el.appendChild(div);
   });
@@ -586,10 +858,11 @@ function renderMyHand(gs, isMyTurn, players) {
 async function playCard(card, gs, players) {
   const pids = gs.pids;
   if (pids[gs.currentTurn % pids.length] !== MY_PID) return;
+  if (card.rank === 'JOKER') return; // ジョーカーは別途処理
 
+  const rules = gs.rules || {};
   const newBoard = JSON.parse(JSON.stringify(gs.board));
-  if (card.num < newBoard[card.suit].min) newBoard[card.suit].min = card.num;
-  else newBoard[card.suit].max = card.num;
+  updateBoardForCard(newBoard, card, rules); // AK隣接を考慮したボード更新
 
   const myHand = (gs.hands[MY_PID] || []).filter(c => c.id !== card.id);
 
@@ -624,6 +897,124 @@ async function playCard(card, gs, players) {
     logs: newLogs
   });
 }
+
+// ===== JOKER MODE =====
+let jokerMode = false;
+let activeJokerCard = null;
+
+window._startJokerMode = function(card) {
+  const gs = gameState;
+  if (!gs) return;
+  // ジョーカーカードを特定（引数があればそれ、なければ手札から最初のジョーカー）
+  const joker = card || (gs.hands[MY_PID] || []).find(c => c.rank === 'JOKER');
+  if (!joker) return;
+  activeJokerCard = joker;
+  jokerMode = true;
+  get(ref(db, 'rooms_sevens/' + ROOM + '/players')).then(ps => {
+    renderGame(gs, ps.val() || {});
+  });
+  showToast('🃏 ボードで置く位置をタップしてください');
+};
+
+window._cancelJokerMode = function() {
+  jokerMode = false;
+  activeJokerCard = null;
+  const gs = gameState;
+  if (!gs) return;
+  get(ref(db, 'rooms_sevens/' + ROOM + '/players')).then(ps => {
+    renderGame(gs, ps.val() || {});
+  });
+};
+
+// ジョーカーをボードの target 位置に置く（自動配置カスケード付き）
+window._placeJoker = async function(target) {
+  if (!jokerMode || !activeJokerCard) return;
+  const gs = gameState;
+  if (!gs) return;
+  const pids = gs.pids;
+  if (pids[gs.currentTurn % pids.length] !== MY_PID) return;
+
+  jokerMode = false;
+  const jokerCard = activeJokerCard;
+  activeJokerCard = null;
+
+  const rules = gs.rules || {};
+  const newBoard = JSON.parse(JSON.stringify(gs.board));
+  const newHands = JSON.parse(JSON.stringify(gs.hands));
+  const newJokerPositions = [...(gs.jokerPositions || [])];
+
+  // ジョーカーをボードに適用
+  const { suit, num, isWrap } = target;
+  if (isWrap === 'aAboveK') {
+    newBoard[suit].aAboveK = true;
+  } else if (isWrap === 'kBelowA') {
+    newBoard[suit].kBelowA = true;
+  } else if (num < newBoard[suit].min) {
+    newBoard[suit].min = num;
+  } else {
+    newBoard[suit].max = num;
+  }
+  newJokerPositions.push({ suit, num, isWrap: isWrap || null });
+
+  // ジョーカーを手札から除去
+  newHands[MY_PID] = newHands[MY_PID].filter(c => c.id !== jokerCard.id);
+
+  // プレイヤー名取得
+  const psSnap = await get(ref(db, 'rooms_sevens/' + ROOM + '/players'));
+  const players = psSnap.val() || {};
+
+  const rankName = isWrap === 'aAboveK' ? 'A(K上)' : isWrap === 'kBelowA' ? 'K(A下)' : RANKS[num - 1] || num;
+  const newLogs = [...(gs.logs || []), `🃏 ${MY_NAME} がジョーカーを ${suit}${rankName} に使用`];
+
+  // 自動配置カスケード: 新たに出せるカードを全プレイヤー分繰り返し配置
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const pid of pids) {
+      const toPlay = (newHands[pid] || []).filter(c => isCardPlayable(c, newBoard, rules));
+      for (const card of toPlay) {
+        updateBoardForCard(newBoard, card, rules);
+        newHands[pid] = newHands[pid].filter(c => c.id !== card.id);
+        newLogs.push(`✨ ${players[pid]?.name || pid} の ${card.rank}${card.suit} が自動配置！`);
+        changed = true;
+      }
+    }
+  }
+
+  // あがり判定
+  const newFinished = [...(gs.finished || [])];
+  pids.forEach(pid => {
+    const remaining = (newHands[pid] || []).filter(c => c.rank !== 'JOKER');
+    const jokerCount = (newHands[pid] || []).filter(c => c.rank === 'JOKER').length;
+    if (remaining.length === 0 && !newFinished.includes(pid) && !(gs.eliminated || []).includes(pid)) {
+      // ジョーカーが残っていても手札が0なら「あがり」（ジョーカーは消える）
+      newHands[pid] = []; // ジョーカー含め全削除
+      newFinished.push(pid);
+      if (pid === MY_PID) showToast('🎉 あがり！');
+    }
+  });
+
+  // 次ターン
+  const eliminated = gs.eliminated || [];
+  const skipped = [...newFinished, ...eliminated];
+  let nextTurn = gs.currentTurn + 1;
+  for (let i = 0; i < pids.length; i++) {
+    if (!skipped.includes(pids[nextTurn % pids.length])) break;
+    nextTurn++;
+  }
+  const activePids = pids.filter(p => !skipped.includes(p));
+  const gameOver = activePids.length <= 1;
+
+  await update(ref(db, 'rooms_sevens/' + ROOM + '/gameState'), {
+    hands: newHands,
+    board: newBoard,
+    jokerPositions: newJokerPositions,
+    finished: newFinished,
+    currentTurn: nextTurn % pids.length,
+    gameOver,
+    logs: newLogs.slice(-30)
+  });
+};
 
 // ===== PASS =====
 async function passClick() {
@@ -667,11 +1058,12 @@ async function eliminatePlayer() {
 
   const hand = gs.hands[MY_PID] || [];
   const newBoard = JSON.parse(JSON.stringify(gs.board));
+  const rules = gs.rules || {};
 
-  // 手札を全て場に展開
+  // 手札を全て場に展開（ジョーカーはボードに出せないので消去のみ）
   hand.forEach(card => {
-    if (card.num < newBoard[card.suit].min) newBoard[card.suit].min = card.num;
-    if (card.num > newBoard[card.suit].max) newBoard[card.suit].max = card.num;
+    if (card.rank === 'JOKER') return;
+    updateBoardForCard(newBoard, card, rules);
   });
 
   const newEliminated = [...(gs.eliminated || []), MY_PID];
