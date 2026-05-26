@@ -208,21 +208,27 @@ async function cleanupOldRooms() {
 window.createRoom = async function() {
   const name = document.getElementById('playerName').value.trim();
   if (!name) { setStatus('名前を入力してください', 'error'); return; }
-  await cleanupOldRooms();
+  try {
+    setStatus('ルームを作成中...', '');
+    await cleanupOldRooms();
 
-  const roomCode = genRoomCode();
-  const pid = getPlayerId();
+    const roomCode = genRoomCode();
+    const pid = getPlayerId();
 
-  await set(ref(db, 'rooms_sevens/' + roomCode), {
-    code: roomCode, status: 'waiting',
-    players: { [pid]: { name, index: 0, ready: true } },
-    createdAt: Date.now()
-  });
+    await set(ref(db, 'rooms_sevens/' + roomCode), {
+      code: roomCode, status: 'waiting',
+      players: { [pid]: { name, index: 0, ready: true } },
+      createdAt: Date.now()
+    });
 
-  setStatus('ルームコード: ' + roomCode + ' — 友達に教えよう！', 'success');
-  setTimeout(() => {
-    location.href = 'sevens-game.html?room=' + roomCode + '&pid=' + pid + '&name=' + encodeURIComponent(name);
-  }, 1200);
+    setStatus('ルームコード: ' + roomCode + ' — 友達に教えよう！', 'success');
+    setTimeout(() => {
+      location.href = 'sevens-game.html?room=' + roomCode + '&pid=' + pid + '&name=' + encodeURIComponent(name);
+    }, 1200);
+  } catch(e) {
+    setStatus('エラー: ' + (e.message || 'Firebase接続に失敗しました'), 'error');
+    console.error(e);
+  }
 };
 
 window.joinRoom = async function() {
@@ -232,22 +238,28 @@ window.joinRoom = async function() {
   const code = document.getElementById('roomCodeInput').value.trim().toUpperCase();
   if (code.length !== 4) { setStatus('4文字のルームコードを入力してください', 'error'); return; }
 
-  await cleanupOldRooms();
-  const pid = getPlayerId();
-  const snap = await get(ref(db, 'rooms_sevens/' + code));
+  try {
+    setStatus('参加中...', '');
+    await cleanupOldRooms();
+    const pid = getPlayerId();
+    const snap = await get(ref(db, 'rooms_sevens/' + code));
 
-  if (!snap.exists()) { setStatus('ルームが見つかりません', 'error'); return; }
-  const room = snap.val();
-  if (room.status === 'playing') { setStatus('そのルームはゲーム中です', 'error'); return; }
+    if (!snap.exists()) { setStatus('ルームが見つかりません', 'error'); return; }
+    const room = snap.val();
+    if (room.status === 'playing') { setStatus('そのルームはゲーム中です', 'error'); return; }
 
-  const playerCount = Object.keys(room.players || {}).length;
-  if (playerCount >= 4) { setStatus('ルームが満員です (4/4)', 'error'); return; }
+    const playerCount = Object.keys(room.players || {}).length;
+    if (playerCount >= 4) { setStatus('ルームが満員です (4/4)', 'error'); return; }
 
-  await update(ref(db, 'rooms_sevens/' + code + '/players/' + pid), {
-    name, index: playerCount, ready: true
-  });
+    await update(ref(db, 'rooms_sevens/' + code + '/players/' + pid), {
+      name, index: playerCount, ready: true
+    });
 
-  location.href = 'sevens-game.html?room=' + code + '&pid=' + pid + '&name=' + encodeURIComponent(name);
+    location.href = 'sevens-game.html?room=' + code + '&pid=' + pid + '&name=' + encodeURIComponent(name);
+  } catch(e) {
+    setStatus('エラー: ' + (e.message || 'Firebase接続に失敗しました'), 'error');
+    console.error(e);
+  }
 };
 </script>
 </body>

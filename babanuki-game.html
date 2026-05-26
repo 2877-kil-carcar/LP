@@ -102,6 +102,20 @@
   }
   @keyframes pulse { 0%,100%{opacity:0.5;} 50%{opacity:1;} }
 
+  .leave-btn {
+    margin-top: 16px;
+    padding: 10px 28px;
+    background: transparent;
+    border: 1px solid rgba(192,57,43,0.35);
+    border-radius: 8px;
+    color: rgba(224,112,112,0.6);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .leave-btn:hover { background: rgba(192,57,43,0.12); border-color: rgba(192,57,43,0.65); color: #e07070; }
+
   /* ===== GAME SCREEN ===== */
   #gameScreen { display: none; min-height: 100vh; position: relative; }
 
@@ -436,6 +450,7 @@
     transition:all 0.2s;
   ">ゲームを開始する 🃏</button>
   <div id="waitingForHost" style="display:none;margin-top:24px;font-size:0.85rem;color:rgba(245,240,232,0.4);">ホストがゲームを開始するまで待ってください...</div>
+  <button class="leave-btn" onclick="leaveRoom()">← 退出する</button>
 </div>
 
 <!-- Game Screen -->
@@ -661,6 +676,25 @@ onValue(roomRef, async (snap) => {
     waitingForHost.style.display = 'block';
   }
 });
+
+// ===== LEAVE ROOM =====
+window.leaveRoom = async function() {
+  try {
+    const snap = await get(roomRef);
+    if (!snap.exists()) { location.href = 'babanuki.html'; return; }
+    const pids = Object.keys(snap.val().players || {});
+    if (pids.length <= 1) {
+      // 最後の1人 → ルームごと削除
+      await set(roomRef, null);
+    } else {
+      // 自分だけ削除
+      const updates = {};
+      updates['players/' + MY_PID] = null;
+      await update(roomRef, updates);
+    }
+  } catch(e) { console.error(e); }
+  location.href = 'babanuki.html';
+};
 
 window.hostStartGame = async function() {
   // 画像が取得できるまで待ってからゲームを開始する
