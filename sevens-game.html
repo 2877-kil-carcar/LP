@@ -212,6 +212,57 @@
   /* Toast */
   .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-60px); background:rgba(20,60,35,0.95); border:1px solid rgba(201,168,76,0.4); color:var(--gold-light); padding:12px 24px; border-radius:30px; font-size:0.9rem; z-index:200; transition:transform 0.3s ease; white-space:nowrap; }
   .toast.show { transform:translateX(-50%) translateY(0); }
+
+  /* ===== ニコニココメント ===== */
+  .nico-comment {
+    position: fixed;
+    left: 100%;
+    white-space: nowrap;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+    pointer-events: none;
+    z-index: 50;
+    animation: nicoScroll 7s linear forwards;
+  }
+  @keyframes nicoScroll {
+    from { transform: translateX(0); }
+    to   { transform: translateX(calc(-100vw - 100%)); }
+  }
+  .comment-row {
+    display: none;
+    gap: 8px;
+    padding: 0 2px 4px;
+  }
+  .comment-input {
+    flex: 1;
+    padding: 9px 12px;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    color: var(--cream);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 0.85rem;
+    outline: none;
+    min-width: 0;
+  }
+  .comment-input::placeholder { color: rgba(245,240,232,0.3); }
+  .comment-input:focus { border-color: rgba(201,168,76,0.5); }
+  .comment-send-btn {
+    padding: 9px 14px;
+    background: rgba(201,168,76,0.15);
+    border: 1px solid rgba(201,168,76,0.35);
+    border-radius: 8px;
+    color: var(--gold);
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 0.82rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .comment-send-btn:hover { background: rgba(201,168,76,0.28); }
 </style>
 </head>
 <body>
@@ -279,6 +330,11 @@
     </div>
 
     <div class="game-log" id="gameLog"><div class="log-entry">ゲーム開始！</div></div>
+
+    <div class="comment-row" id="commentRow">
+      <input class="comment-input" type="text" id="commentInput" placeholder="コメントを流す..." maxlength="30" />
+      <button class="comment-send-btn" onclick="window._sendComment()">💬 送信</button>
+    </div>
   </div>
 </div>
 
@@ -298,7 +354,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, get, update, onValue, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, collection, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
@@ -692,6 +748,7 @@ async function startGame(room) {
 function startGameUI(gs, players) {
   document.getElementById('waitingScreen').style.display = 'none';
   document.getElementById('gameScreen').style.display = 'block';
+  document.getElementById('commentRow').style.display = 'flex';
   gameState = gs;
   renderGame(gs, players);
 }
@@ -1330,6 +1387,49 @@ function renderLog(logs) {
   el.innerHTML = last5.map((l, i) => `<div class="log-entry${i===last5.length-1?' highlight':''}">${l}</div>`).join('');
   el.scrollTop = el.scrollHeight;
 }
+
+// ===== NICO COMMENT =====
+const NICO_LANES = [15, 24, 33, 42, 51, 60, 69, 78]; // top% of viewport
+let nicoLane = 0;
+
+function showNicoComment(name, text) {
+  const el = document.createElement('div');
+  el.className = 'nico-comment';
+  el.textContent = `${name}：${text}`;
+  el.style.top = NICO_LANES[nicoLane % NICO_LANES.length] + '%';
+  nicoLane++;
+  document.body.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+const commentStartTime = Date.now();
+onChildAdded(ref(db, 'rooms_sevens/' + ROOM + '/comments'), (snap) => {
+  const data = snap.val();
+  if (!data || data.t < commentStartTime) return; // 接続前の古いコメントは無視
+  showNicoComment(data.name, data.text);
+});
+
+window._sendComment = async function() {
+  const input = document.getElementById('commentInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  await push(ref(db, 'rooms_sevens/' + ROOM + '/comments'), {
+    name: MY_NAME,
+    text,
+    t: Date.now()
+  });
+};
+
+// Enterキーでも送信
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('commentInput');
+  if (input) {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') window._sendComment();
+    });
+  }
+});
 
 // ===== TOAST =====
 function showToast(msg) {
