@@ -94,6 +94,7 @@
   .board-chip.played { background:rgba(201,168,76,0.22); border-color:rgba(201,168,76,0.4); color:var(--gold-light); }
   .board-chip.seven { background:rgba(201,168,76,0.6); border-color:var(--gold); color:var(--green-deep); font-size:0.58rem; }
   .board-chip.playable-pos { border-color:rgba(112,224,160,0.6); animation:chipGlow 1.2s ease-in-out infinite; }
+  .board-chip.gap { background:rgba(192,57,43,0.2); border-color:rgba(220,80,60,0.6); color:rgba(255,130,110,0.9); }
   @keyframes chipGlow { 0%,100%{background:rgba(45,138,86,0.08);} 50%{background:rgba(45,138,86,0.28);} }
 
   /* Opponents */
@@ -397,54 +398,147 @@ function shuffle(arr) {
   return a;
 }
 
-// ルールを考慮したカードの出せる判定
+// 7から連続している端を計算（gaps があると途中で止まる）
+function getContiguousEdges(s) {
+  const gaps = s.gaps || [];
+  let maxContig = 7;
+  for (let i = 8; i <= (s.max || 7); i++) {
+    if (gaps.includes(i)) break;
+    maxContig = i;
+  }
+  let minContig = 7;
+  for (let i = 6; i >= (s.min || 7); i--) {
+    if (gaps.includes(i)) break;
+    minContig = i;
+  }
+  return { minContig, maxContig };
+}
+
+// ルールを考慮したカードの出せる判定（gaps・AKアーム対応）
 function isCardPlayable(card, board, rules = {}) {
-  if (card.rank === 'JOKER') return false; // ジョーカーは別途処理
+  if (card.rank === 'JOKER') return false;
   const s = board[card.suit];
   if (!s) return false;
-  // 通常の隣接判定
-  if (card.num === s.min - 1 || card.num === s.max + 1) return true;
-  // AK隣接ルール: Kの上にA、Aの下にKを出せる（1回のみ）
+  const gaps = s.gaps || [];
+  // ギャップ埋め
+  if (gaps.includes(card.num)) return true;
+  // 7から連続している端の拡張
+  const { minContig, maxContig } = getContiguousEdges(s);
+  if (card.num === minContig - 1 || card.num === maxContig + 1) return true;
+  // AK隣接ルール
   if (rules.akAdjacent) {
-    if (s.max === 13 && !s.aAboveK && card.num === 1) return true;  // AをKの上に
-    if (s.min === 1  && !s.kBelowA && card.num === 13) return true; // KをAの下に
+    // 初回: KまでつながったらAを出せる / AまでつながったらKを出せる
+    if (maxContig === 13 && !s.aAboveK && card.num === 1) return true;
+    if (minContig === 1  && !s.kBelowA && card.num === 13) return true;
+    // アーム延長: Aの上アーム（A→2→3→…）
+    if (s.aAboveK) {
+      const armTop = s.maxAboveK || 1; // アームの先端（Aなら1）
+      if (card.num === armTop + 1 && card.num < minContig) return true;
+    }
+    // アーム延長: Kの下アーム（K→Q→J→…）
+    if (s.kBelowA) {
+      const armBot = s.minBelowA || 13; // アームの先端（Kなら13）
+      if (card.num === armBot - 1 && card.num > maxContig) return true;
+    }
   }
   return false;
 }
 
-// ボードをカードに合わせて更新（AK隣接を考慮）
+// ボードをカードに合わせて更新（gaps・AKアーム対応）
 function updateBoardForCard(newBoard, card, rules = {}) {
   if (card.rank === 'JOKER') return;
   const s = newBoard[card.suit];
+  if (!s.gaps) s.gaps = [];
   if (rules.akAdjacent) {
-    if (card.num === 1 && s.max === 13 && !s.aAboveK) {
-      newBoard[card.suit].aAboveK = true; return; // A をK上に配置
+    const { minContig, maxContig } = getContiguousEdges(s);
+    // 初回: A above K
+    if (card.num === 1 && maxContig === 13 && !s.aAboveK) {
+      newBoard[card.suit].aAboveK = true;
+      newBoard[card.suit].maxAboveK = 1; // アームはAから始まる
+      return;
     }
-    if (card.num === 13 && s.min === 1 && !s.kBelowA) {
-      newBoard[card.suit].kBelowA = true; return; // K をA下に配置
+    // アーム延長: A→2→3→…
+    if (s.aAboveK) {
+      const armTop = s.maxAboveK || 1;
+      if (card.num === armTop + 1 && card.num < minContig) {
+        newBoard[card.suit].maxAboveK = card.num;
+        return;
+      }
+    }
+    // 初回: K below A
+    if (card.num === 13 && minContig === 1 && !s.kBelowA) {
+      newBoard[card.suit].kBelowA = true;
+      newBoard[card.suit].minBelowA = 13; // アームはKから始まる
+      return;
+    }
+    // アーム延長: K→Q→J→…
+    if (s.kBelowA) {
+      const armBot = s.minBelowA || 13;
+      if (card.num === armBot - 1 && card.num > maxContig) {
+        newBoard[card.suit].minBelowA = card.num;
+        return;
+      }
     }
   }
+  // ギャップ埋め
+  const gapIdx = s.gaps.indexOf(card.num);
+  if (gapIdx !== -1) { s.gaps.splice(gapIdx, 1); return; }
+  // 端拡張
   if (card.num < s.min) newBoard[card.suit].min = card.num;
   else newBoard[card.suit].max = card.num;
 }
 
-// ジョーカーが置ける全候補を返す
+// 脱落時の強制配置: 隣接チェックなしで全カードを展開し飛ばした位置をgapsに登録
+function forceCardOnBoard(newBoard, card) {
+  if (card.rank === 'JOKER') return;
+  const s = newBoard[card.suit];
+  if (!s) return;
+  if (!s.gaps) s.gaps = [];
+  const num = card.num;
+  if (num < s.min) {
+    for (let i = num + 1; i < s.min; i++) s.gaps.push(i); // 飛んだ位置をgapに
+    newBoard[card.suit].min = num;
+  } else if (num > s.max) {
+    for (let i = s.max + 1; i < num; i++) s.gaps.push(i); // 飛んだ位置をgapに
+    newBoard[card.suit].max = num;
+  } else {
+    // min〜max範囲内にあればgapから除去
+    const idx = s.gaps.indexOf(num);
+    if (idx !== -1) s.gaps.splice(idx, 1);
+  }
+}
+
+// ジョーカーが置ける全候補を返す（gaps位置も含む・連続端ベース）
 function getJokerTargets(board, rules = {}) {
   const targets = [];
   for (const suit of SUITS) {
     const s = board[suit];
     if (!s) continue;
-    if (s.min > 1)  targets.push({ suit, num: s.min - 1 });
-    if (s.max < 13) targets.push({ suit, num: s.max + 1 });
+    const gaps = s.gaps || [];
+    const { minContig, maxContig } = getContiguousEdges(s);
+    // ギャップ位置（脱落者が飛ばした位置）
+    gaps.forEach(num => targets.push({ suit, num, isGap: true }));
+    // 連続端の拡張（ギャップ外の位置のみ）
+    if (minContig > 1 && !gaps.includes(minContig - 1)) targets.push({ suit, num: minContig - 1 });
+    if (maxContig < 13 && !gaps.includes(maxContig + 1)) targets.push({ suit, num: maxContig + 1 });
+    // AK隣接（連続端がK/Aに達しているときのみ）
     if (rules.akAdjacent) {
-      if (s.max === 13 && !s.aAboveK) targets.push({ suit, num: 1,  isWrap: 'aAboveK' });
-      if (s.min === 1  && !s.kBelowA) targets.push({ suit, num: 13, isWrap: 'kBelowA' });
+      if (maxContig === 13 && !s.aAboveK) targets.push({ suit, num: 1,  isWrap: 'aAboveK' });
+      if (minContig === 1  && !s.kBelowA) targets.push({ suit, num: 13, isWrap: 'kBelowA' });
+      // AKアーム延長位置
+      if (s.aAboveK) {
+        const armTop = s.maxAboveK || 1;
+        if (armTop + 1 < minContig && !gaps.includes(armTop + 1)) targets.push({ suit, num: armTop + 1 });
+      }
+      if (s.kBelowA) {
+        const armBot = s.minBelowA || 13;
+        if (armBot - 1 > maxContig && !gaps.includes(armBot - 1)) targets.push({ suit, num: armBot - 1 });
+      }
     }
   }
-  // 重複除去
   const seen = new Set();
   return targets.filter(t => {
-    const k = `${t.suit}-${t.num}-${t.isWrap||''}`;
+    const k = `${t.suit}-${t.num}-${t.isWrap||''}-${t.isGap||''}`;
     if (seen.has(k)) return false;
     seen.add(k); return true;
   });
@@ -670,9 +764,15 @@ function renderBoard(gs) {
       let chipText = rank;
       let chipClick = null;
 
+      const gaps = (s && s.gaps) || [];
+      const isGapPos = gaps.includes(num);
+
       // ジョーカーが置かれているか確認
       const hasJoker = jokerPositions.some(j =>
-        j.suit === suit && j.num === num && !j.isWrap
+        j.suit === suit && j.num === num && !j.isWrap && !j.isGap
+      );
+      const hasJokerGap = jokerPositions.some(j =>
+        j.suit === suit && j.num === num && j.isGap
       );
       const hasJokerWrapAK = jokerPositions.some(j =>
         j.suit === suit && (
@@ -683,31 +783,49 @@ function renderBoard(gs) {
 
       if (rank === '7') {
         cls += ' seven';
-      } else if (hasJoker || hasJokerWrapAK) {
+      } else if (hasJoker || hasJokerWrapAK || hasJokerGap) {
         cls += ' joker-pos'; chipText = '🃏';
+      } else if (isGapPos) {
+        // 脱落者が飛ばした位置: 赤チップで「埋める必要あり」を表示
+        if (jokerMode) {
+          const target = jokerTargets.find(t => t.suit === suit && t.num === num && t.isGap);
+          if (target) {
+            cls += ' joker-target';
+            chipClick = () => window._placeJoker(target);
+          } else {
+            cls += ' gap';
+          }
+        } else {
+          cls += ' gap';
+        }
       } else if (s && num >= s.min && num <= s.max) {
         cls += ' played';
-      } else if (s && s.aAboveK && num === 1) {
-        cls += ' ak-played'; // AK隣接でAがK上に配置済み
-      } else if (s && s.kBelowA && num === 13) {
-        cls += ' ak-played'; // AK隣接でKがA下に配置済み
+      } else if (s && s.aAboveK && num >= 1 && num <= (s.maxAboveK || 1)) {
+        cls += ' ak-played'; // Aから始まる上アームのカード（A,2,3…）
+      } else if (s && s.kBelowA && num <= 13 && num >= (s.minBelowA || 13)) {
+        cls += ' ak-played'; // Kから始まる下アームのカード（K,Q,J…）
       } else {
         if (jokerMode) {
-          // ジョーカーモード: 置ける位置を強調・クリック可能
-          const target = jokerTargets.find(t => t.suit === suit && t.num === num);
+          const target = jokerTargets.find(t => t.suit === suit && t.num === num && !t.isGap);
           if (target) {
             cls += ' joker-target';
             chipClick = () => window._placeJoker(target);
           }
         } else if (s) {
-          // 通常の出せる位置
-          if (num === s.min - 1 || num === s.max + 1) {
-            cls += ' playable-pos';
-          }
-          // AK隣接: 出せるAK位置
+          const { minContig, maxContig } = getContiguousEdges(s);
+          if (num === minContig - 1 || num === maxContig + 1) cls += ' playable-pos';
           if (rules.akAdjacent) {
-            if (s.max === 13 && !s.aAboveK && num === 1)  cls += ' ak-playable';
-            if (s.min === 1  && !s.kBelowA && num === 13) cls += ' ak-playable';
+            if (maxContig === 13 && !s.aAboveK && num === 1)  cls += ' ak-playable';
+            if (minContig === 1  && !s.kBelowA && num === 13) cls += ' ak-playable';
+            // アーム延長のplayable表示
+            if (s.aAboveK) {
+              const armTop = s.maxAboveK || 1;
+              if (num === armTop + 1 && num < minContig) cls += ' ak-playable';
+            }
+            if (s.kBelowA) {
+              const armBot = s.minBelowA || 13;
+              if (num === armBot - 1 && num > maxContig) cls += ' ak-playable';
+            }
           }
         }
       }
@@ -994,17 +1112,25 @@ window._placeJoker = async function(target) {
   const newJokerPositions = [...(gs.jokerPositions || [])];
 
   // ジョーカーをボードに適用
-  const { suit, num, isWrap } = target;
+  const { suit, num, isWrap, isGap } = target;
   if (isWrap === 'aAboveK') {
     newBoard[suit].aAboveK = true;
+    newBoard[suit].maxAboveK = 1; // アームはAから始まる
   } else if (isWrap === 'kBelowA') {
     newBoard[suit].kBelowA = true;
+    newBoard[suit].minBelowA = 13; // アームはKから始まる
+  } else if (isGap) {
+    // ギャップ位置を埋める
+    const gapArr = newBoard[suit].gaps || [];
+    const gIdx = gapArr.indexOf(num);
+    if (gIdx !== -1) gapArr.splice(gIdx, 1);
+    newBoard[suit].gaps = gapArr;
   } else if (num < newBoard[suit].min) {
     newBoard[suit].min = num;
   } else {
     newBoard[suit].max = num;
   }
-  newJokerPositions.push({ suit, num, isWrap: isWrap || null });
+  newJokerPositions.push({ suit, num, isWrap: isWrap || null, isGap: isGap || false });
 
   // ジョーカーを手札から除去
   const newHands = JSON.parse(JSON.stringify(gs.hands));
@@ -1097,11 +1223,8 @@ async function eliminatePlayer() {
   const newBoard = JSON.parse(JSON.stringify(gs.board));
   const rules = gs.rules || {};
 
-  // 手札を全て場に展開（ジョーカーはボードに出せないので消去のみ）
-  hand.forEach(card => {
-    if (card.rank === 'JOKER') return;
-    updateBoardForCard(newBoard, card, rules);
-  });
+  // 手札を全て場に強制展開: 隣接していなくてもすべて配置し、飛んだ位置をgapsに登録
+  hand.forEach(card => forceCardOnBoard(newBoard, card));
 
   const newEliminated = [...(gs.eliminated || []), MY_PID];
 
