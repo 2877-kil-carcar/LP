@@ -958,7 +958,17 @@ function renderMyHand(gs, isMyTurn, players) {
     elimBtn.style.display = 'none';
   }
 
-  hand.forEach(card => {
+  // 手札をソート: ジョーカー→スート順(♠♥♦♣)→A〜K
+  const sortedHand = [...hand].sort((a, b) => {
+    if (a.rank === 'JOKER' && b.rank !== 'JOKER') return -1;
+    if (a.rank !== 'JOKER' && b.rank === 'JOKER') return 1;
+    if (a.rank === 'JOKER' && b.rank === 'JOKER') return 0;
+    const suitDiff = SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit);
+    if (suitDiff !== 0) return suitDiff;
+    return a.num - b.num;
+  });
+
+  sortedHand.forEach(card => {
     const div = document.createElement('div');
     const isJoker = card.rank === 'JOKER';
 
