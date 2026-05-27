@@ -576,8 +576,10 @@ onValue(roomRef, async (snap) => {
     slotsEl.appendChild(slot);
   });
 
-  // host フィールドで判定（なければフォールバックとして pids[0]）
-  const isHost = (room.host ? room.host === MY_PID : pids[0] === MY_PID);
+  // host フィールドで判定（なければ index:0 のプレイヤーが作成者）
+  // ※ Object.keys() は辞書順になるため pids[0] は信頼できない
+  const hostPid = room.host || Object.keys(players).find(p => players[p]?.index === 0);
+  const isHost = hostPid === MY_PID;
   const canStart = pids.length >= 2;
   const ws = document.getElementById('waitingStatus');
   ws.textContent = canStart ? `${pids.length} 人が参加中` : `${pids.length} 人参加中 — あと${2-pids.length}人待ち`;
@@ -625,8 +627,9 @@ window._leaveRoom = async function() {
     } else {
       const updates = {};
       updates['players/' + MY_PID] = null;
-      // 自分がホストなら次の人に譲渡
-      const currentHost = room.host || pids[0];
+      // 自分がホストなら次の人に譲渡（index:0 フォールバックも使用）
+      const roomPlayers = room.players || {};
+      const currentHost = room.host || Object.keys(roomPlayers).find(p => roomPlayers[p]?.index === 0);
       if (currentHost === MY_PID) {
         const nextHost = pids.find(p => p !== MY_PID);
         if (nextHost) updates['host'] = nextHost;
@@ -642,7 +645,11 @@ window.hostStartGame = async function() {
   const snap = await get(roomRef);
   if (!snap.exists()) return;
   const room = snap.val();
-  const pids = Object.keys(room.players || {});
+  const roomPlayers = room.players || {};
+  // ホストのみ開始できる
+  const hostPid = room.host || Object.keys(roomPlayers).find(p => roomPlayers[p]?.index === 0);
+  if (hostPid !== MY_PID) return;
+  const pids = Object.keys(roomPlayers);
   if (pids.length < 2) return;
   await startGame(room);
 };
