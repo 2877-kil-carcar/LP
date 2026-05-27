@@ -420,9 +420,7 @@ function isCardPlayable(card, board, rules = {}) {
   const s = board[card.suit];
   if (!s) return false;
   const gaps = s.gaps || [];
-  // ギャップ埋め
-  if (gaps.includes(card.num)) return true;
-  // 7から連続している端の拡張
+  // 7から連続している端の拡張（端がgapの場合も minContig-1 / maxContig+1 で一致するので別チェック不要）
   const { minContig, maxContig } = getContiguousEdges(s);
   if (card.num === minContig - 1 || card.num === maxContig + 1) return true;
   // AK隣接ルール
@@ -578,7 +576,8 @@ onValue(roomRef, async (snap) => {
     slotsEl.appendChild(slot);
   });
 
-  const isHost = pids[0] === MY_PID;
+  // host フィールドで判定（なければフォールバックとして pids[0]）
+  const isHost = (room.host ? room.host === MY_PID : pids[0] === MY_PID);
   const canStart = pids.length >= 2;
   const ws = document.getElementById('waitingStatus');
   ws.textContent = canStart ? `${pids.length} 人が参加中` : `${pids.length} 人参加中 — あと${2-pids.length}人待ち`;
@@ -618,14 +617,20 @@ window._leaveRoom = async function() {
   try {
     const snap = await get(roomRef);
     if (!snap.exists()) { location.href = 'sevens.html'; return; }
-    const pids = Object.keys(snap.val().players || {});
+    const room = snap.val();
+    const pids = Object.keys(room.players || {});
     if (pids.length <= 1) {
       // 最後の1人 → ルームごと削除
       await set(roomRef, null);
     } else {
-      // 自分だけ削除
       const updates = {};
       updates['players/' + MY_PID] = null;
+      // 自分がホストなら次の人に譲渡
+      const currentHost = room.host || pids[0];
+      if (currentHost === MY_PID) {
+        const nextHost = pids.find(p => p !== MY_PID);
+        if (nextHost) updates['host'] = nextHost;
+      }
       await update(roomRef, updates);
     }
   } catch(e) { console.error(e); }

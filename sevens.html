@@ -217,6 +217,7 @@ window.createRoom = async function() {
 
     await set(ref(db, 'rooms_sevens/' + roomCode), {
       code: roomCode, status: 'waiting',
+      host: pid,
       players: { [pid]: { name, index: 0, ready: true } },
       createdAt: Date.now()
     });
