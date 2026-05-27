@@ -560,10 +560,19 @@
     .lb-next { right: 6px; }
   }
 
-  /* 削除ボタン（ライトボックス内） */
-  .lb-download {
+  /* ダウンロード・削除ボタン（ライトボックス内） */
+  .lb-actions {
     position: fixed;
-    bottom: 24px; left: calc(50% - 110px);
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 10000;
+    pointer-events: all;
+    white-space: nowrap;
+  }
+  .lb-download {
     background: rgba(201,168,76,0.12);
     border: 1px solid rgba(201,168,76,0.35);
     color: rgba(240,208,128,0.85);
@@ -573,13 +582,9 @@
     border-radius: 999px;
     cursor: pointer;
     transition: background 0.2s;
-    z-index: 10000;
-    pointer-events: all;
   }
   .lb-download:hover { background: rgba(201,168,76,0.25); }
   .lb-delete {
-    position: fixed;
-    bottom: 24px; left: calc(50% + 10px);
     background: rgba(200,60,60,0.15);
     border: 1px solid rgba(200,60,60,0.3);
     color: rgba(255,120,120,0.8);
@@ -589,8 +594,6 @@
     border-radius: 999px;
     cursor: pointer;
     transition: background 0.2s;
-    z-index: 10000;
-    pointer-events: all;
   }
   .lb-delete:hover { background: rgba(200,60,60,0.28); }
 
@@ -1302,8 +1305,10 @@
     <p class="lightbox-caption" id="lbCaption"></p>
     <p class="lightbox-num" id="lbNum"></p>
   </div>
-  <button class="lb-download" id="lbDownload">⬇ ダウンロード</button>
-  <button class="lb-delete" id="lbDelete">🗑 この写真を削除</button>
+  <div class="lb-actions">
+    <button class="lb-download" id="lbDownload">⬇ ダウンロード</button>
+    <button class="lb-delete" id="lbDelete">🗑 この写真を削除</button>
+  </div>
 </div>
 
 <!-- CTA -->
