@@ -494,6 +494,19 @@ function isCardPlayable(card, board, rules = {}) {
       const armBot = s.minBelowA || 13; // アームの先端（Kなら13）
       if (card.num === armBot - 1 && card.num > maxContig) return true;
     }
+    // 脱落者がA/KをIslandとして置いた場合のアーム
+    // KがmaxContig=13に達していてAが既にIslandとして存在 → Aの隣から出せる
+    if (maxContig === 13 && !s.aAboveK && s.min <= 1 && !gaps.includes(1)) {
+      let armTop = 1;
+      while (armTop + 1 < minContig && !gaps.includes(armTop + 1)) armTop++;
+      if (card.num === armTop + 1 && card.num < minContig) return true;
+    }
+    // AがminContig=1に達していてKが既にIslandとして存在 → Kの隣から出せる
+    if (minContig === 1 && !s.kBelowA && s.max >= 13 && !gaps.includes(13)) {
+      let armBot = 13;
+      while (armBot - 1 > maxContig && !gaps.includes(armBot - 1)) armBot--;
+      if (card.num === armBot - 1 && card.num > maxContig) return true;
+    }
   }
   return false;
 }
@@ -893,6 +906,17 @@ function renderBoard(gs) {
             }
             if (s.kBelowA) {
               const armBot = s.minBelowA || 13;
+              if (num === armBot - 1 && num > maxContig) cls += ' ak-playable';
+            }
+            // 脱落者がA/KをIslandとして置いた場合のアーム表示
+            if (maxContig === 13 && !s.aAboveK && s.min <= 1 && !(s.gaps||[]).includes(1)) {
+              let armTop = 1;
+              while (armTop + 1 < minContig && !(s.gaps||[]).includes(armTop + 1)) armTop++;
+              if (num === armTop + 1 && num < minContig) cls += ' ak-playable';
+            }
+            if (minContig === 1 && !s.kBelowA && s.max >= 13 && !(s.gaps||[]).includes(13)) {
+              let armBot = 13;
+              while (armBot - 1 > maxContig && !(s.gaps||[]).includes(armBot - 1)) armBot--;
               if (num === armBot - 1 && num > maxContig) cls += ' ak-playable';
             }
           }
