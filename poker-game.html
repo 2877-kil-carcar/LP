@@ -215,24 +215,6 @@
   .hint-pt { font-size:0.9rem; font-weight:700; color:var(--gold); min-width:36px; text-align:right; }
 
   /* ===== じゃんけんオーバーレイ ===== */
-  #jankenOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); backdrop-filter:blur(8px); z-index:90; align-items:center; justify-content:center; padding:20px; }
-  #jankenOverlay.show { display:flex; }
-  .janken-box { background:rgba(15,40,25,0.98); border:1px solid rgba(201,168,76,0.35); border-radius:20px; padding:28px 24px; width:100%; max-width:380px; text-align:center; }
-  .janken-round-info { font-size:0.72rem; color:rgba(245,240,232,0.4); letter-spacing:0.2em; text-transform:uppercase; margin-bottom:8px; }
-  .janken-title { font-family:'Kaisei Decol',serif; font-size:1.5rem; color:var(--gold-light); margin-bottom:6px; }
-  .janken-sub { font-size:0.82rem; color:rgba(245,240,232,0.55); margin-bottom:18px; min-height:20px; }
-  .janken-players { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
-  .janken-player-chip { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:5px 11px; font-size:0.8rem; transition:all 0.2s; }
-  .janken-player-chip.chosen { border-color:rgba(201,168,76,0.5); background:rgba(201,168,76,0.1); color:var(--gold-light); }
-  .janken-player-chip.me { border-color:rgba(45,138,86,0.5); }
-  .janken-btns { display:flex; justify-content:center; gap:12px; margin-bottom:16px; }
-  .janken-btn { width:76px; height:76px; border-radius:50%; background:rgba(255,255,255,0.06); border:2px solid rgba(255,255,255,0.15); color:var(--cream); font-family:'Noto Sans JP',sans-serif; font-size:1.6rem; line-height:1; cursor:pointer; transition:all 0.2s; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; }
-  .janken-btn span { font-size:0.6rem; }
-  .janken-btn:hover:not(:disabled) { background:rgba(201,168,76,0.12); border-color:rgba(201,168,76,0.5); transform:scale(1.05); }
-  .janken-btn.selected { background:rgba(201,168,76,0.2); border-color:var(--gold); box-shadow:0 0 16px rgba(201,168,76,0.3); }
-  .janken-btn:disabled { opacity:0.35; cursor:default; }
-  .janken-status { font-size:0.85rem; color:rgba(245,240,232,0.45); animation:pulse 1.5s ease-in-out infinite; min-height:22px; }
-  .janken-order-result { margin-top:14px; background:rgba(201,168,76,0.08); border:1px solid rgba(201,168,76,0.2); border-radius:10px; padding:10px 14px; font-size:0.82rem; color:var(--gold-light); display:none; }
 
   /* ニコニココメント */
   .nico-comment {
@@ -306,22 +288,6 @@
   </div>
 </div>
 
-<!-- じゃんけんオーバーレイ -->
-<div id="jankenOverlay">
-  <div class="janken-box">
-    <div class="janken-round-info" id="jankenRoundInfo"></div>
-    <div class="janken-title">じゃんけん！</div>
-    <div class="janken-sub" id="jankenSub">カード交換の順番を決めます</div>
-    <div class="janken-players" id="jankenPlayers"></div>
-    <div class="janken-btns" id="jankenBtns">
-      <button class="janken-btn" id="jbGu" onclick="window._chooseJanken('グー')">✊<br><span>グー</span></button>
-      <button class="janken-btn" id="jbChoki" onclick="window._chooseJanken('チョキ')">✌️<br><span>チョキ</span></button>
-      <button class="janken-btn" id="jbPa" onclick="window._chooseJanken('パー')">✋<br><span>パー</span></button>
-    </div>
-    <div class="janken-status" id="jankenStatus"></div>
-    <div class="janken-order-result" id="jankenOrderResult"></div>
-  </div>
-</div>
 
 <!-- ラウンド結果オーバーレイ -->
 <div id="roundResultOverlay">
@@ -551,25 +517,19 @@ function checkStraight(sortedNums) {
   return false;
 }
 
-// ===== じゃんけん EVALUATION =====
-function evaluateJanken(pids, choices) {
-  const unique = [...new Set(pids.map(pid => choices[pid]))];
-  if (unique.length === 1 || unique.length === 3) return { aiko: true };
-
-  let winnerHand;
-  if (unique.includes('グー') && unique.includes('チョキ')) winnerHand = 'グー';
-  else if (unique.includes('チョキ') && unique.includes('パー')) winnerHand = 'チョキ';
-  else winnerHand = 'パー';
-
-  const winners = pids.filter(pid => choices[pid] === winnerHand);
-  const losers = pids.filter(pid => choices[pid] !== winnerHand);
-  return { aiko: false, order: [...winners, ...losers] };
+// ===== UTILITY =====
+function shufflePids(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 // ===== STATE =====
 let gameState = null;
 let selectedCards = new Set();
-let jankenCheckPending = false;
 let exchangeInProgress = false;
 
 // ===== WAITING SCREEN HELPERS =====
@@ -720,10 +680,9 @@ async function startGame(room) {
     deck: remainingDeck,
     openCards: [],
     scores,
-    exchangeDone: {},
-    phase: 'janken',
-    janken: { aikoRound: 0, choices: {} },
-    exchangeOrder: null,
+    exchangeDone: { _init: true },
+    phase: 'exchange',
+    exchangeOrder: shufflePids(pids),
     currentExchangeTurn: 0,
     round: 1,
     totalRounds: 3,
@@ -753,16 +712,7 @@ function renderGame(gs, players) {
   document.getElementById('roundIndicator').textContent = `第${gs.round}ラウンド / ${gs.totalRounds}`;
   renderScoreBar(gs, players);
 
-  if (gs.phase === 'janken') {
-    selectedCards = new Set();
-    document.getElementById('roundResultOverlay').classList.remove('show');
-    document.getElementById('jankenOverlay').classList.add('show');
-    renderJanken(gs, players);
-    checkJankenCompletion(gs);
-    return;
-  }
-
-  document.getElementById('jankenOverlay').classList.remove('show');
+  document.getElementById('roundResultOverlay').classList.remove('show');
   renderOpponents(gs, players);
   renderMyHand(gs);
   renderOpenCards(gs);
@@ -773,89 +723,6 @@ function renderGame(gs, players) {
   }
 }
 
-// ===== じゃんけん =====
-function renderJanken(gs, players) {
-  const aikoRound = gs.janken?.aikoRound || 0;
-  const choices = gs.janken?.choices?.[aikoRound] || {};
-  const myChoice = choices[MY_PID];
-  const allChosen = gs.pids.every(pid => choices[pid]);
-
-  document.getElementById('jankenRoundInfo').textContent = `第${gs.round}ラウンド`;
-  document.getElementById('jankenSub').textContent = aikoRound > 0
-    ? `あいこ！もう一度 (${aikoRound}回目)`
-    : 'カード交換の順番を決めます';
-
-  const playersEl = document.getElementById('jankenPlayers');
-  playersEl.innerHTML = gs.pids.map(pid => {
-    const chosen = !!choices[pid];
-    const isMe = pid === MY_PID;
-    return `<div class="janken-player-chip${chosen?' chosen':''}${isMe?' me':''}">${players[pid]?.name || pid}${chosen ? ' ✓' : ''}</div>`;
-  }).join('');
-
-  const hands = [
-    { key: 'グー', icon: '✊', id: 'jbGu' },
-    { key: 'チョキ', icon: '✌️', id: 'jbChoki' },
-    { key: 'パー', icon: '✋', id: 'jbPa' },
-  ];
-  const btnsEl = document.getElementById('jankenBtns');
-  btnsEl.innerHTML = hands.map(h => {
-    const isSelected = myChoice === h.key;
-    const isDisabled = !!myChoice;
-    return `<button class="janken-btn${isSelected?' selected':''}"${isDisabled&&!isSelected?' disabled':''} onclick="window._chooseJanken('${h.key}')">${h.icon}<br><span>${h.key}</span></button>`;
-  }).join('');
-
-  const statusEl = document.getElementById('jankenStatus');
-  if (myChoice && !allChosen) {
-    statusEl.textContent = '他のプレイヤーを待っています...';
-  } else if (!myChoice) {
-    statusEl.textContent = '';
-  } else {
-    statusEl.textContent = '';
-  }
-}
-
-window._chooseJanken = async function(choice) {
-  const gs = gameState;
-  if (!gs || gs.phase !== 'janken') return;
-  const aikoRound = gs.janken?.aikoRound || 0;
-  if (gs.janken?.choices?.[aikoRound]?.[MY_PID]) return;
-
-  await set(ref(db, `rooms_poker/${ROOM}/gameState/janken/choices/${aikoRound}/${MY_PID}`), choice);
-};
-
-async function checkJankenCompletion(gs) {
-  if (jankenCheckPending) return;
-  if (gs.phase !== 'janken') return;
-
-  const aikoRound = gs.janken?.aikoRound || 0;
-  const choices = gs.janken?.choices?.[aikoRound] || {};
-  const allChosen = gs.pids.every(pid => choices[pid]);
-  if (!allChosen) return;
-
-  // Only host evaluates to avoid race conditions
-  const roomSnap = await get(roomRef);
-  if (!roomSnap.exists()) return;
-  const room = roomSnap.val();
-  const hostPid = room.host || gs.pids[0];
-  if (hostPid !== MY_PID) return;
-
-  jankenCheckPending = true;
-  try {
-    const result = evaluateJanken(gs.pids, choices);
-    const updates = {};
-    if (result.aiko) {
-      updates['janken/aikoRound'] = aikoRound + 1;
-    } else {
-      updates['exchangeOrder'] = result.order;
-      updates['currentExchangeTurn'] = 0;
-      updates['phase'] = 'exchange';
-      updates['exchangeDone'] = {};
-    }
-    await update(ref(db, 'rooms_poker/' + ROOM + '/gameState'), updates);
-  } finally {
-    jankenCheckPending = false;
-  }
-}
 
 // ===== PHASE / OPPONENTS =====
 function renderPhase(gs, players) {
@@ -1166,10 +1033,9 @@ window._nextRound = async function() {
     hands,
     deck: remainingDeck,
     openCards: [],
-    exchangeDone: {},
-    phase: 'janken',
-    janken: { aikoRound: 0, choices: {} },
-    exchangeOrder: null,
+    exchangeDone: { _init: true },
+    phase: 'exchange',
+    exchangeOrder: shufflePids(pids),
     currentExchangeTurn: 0,
     round: gs.round + 1,
     roundResults: null,
