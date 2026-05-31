@@ -820,7 +820,7 @@ window._chooseJanken = async function(choice) {
   const aikoRound = gs.janken?.aikoRound || 0;
   if (gs.janken?.choices?.[aikoRound]?.[MY_PID]) return;
 
-  await update(ref(db, `rooms_poker/${ROOM}/gameState/janken/choices/${aikoRound}/${MY_PID}`), choice);
+  await set(ref(db, `rooms_poker/${ROOM}/gameState/janken/choices/${aikoRound}/${MY_PID}`), choice);
 };
 
 async function checkJankenCompletion(gs) {
