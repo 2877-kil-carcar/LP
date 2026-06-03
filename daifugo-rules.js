@@ -11,7 +11,7 @@ const DEFAULT_RULES = {
   revolutionReturn: false,
   revolutionOptional: false,
   stairRevolution: false,
-  coudetar: false, omen: false, emperor: false, revolutionJoker: false,
+  coudetar: false, omen: false, emperor: false, revolutionJoker: false, nanaRevo: false,
   // 階段
   stair: false, stairEffect: false, stairStackable: false,
   // 縛り
@@ -37,7 +37,7 @@ const DEFAULT_RULES = {
 const RULE_BOOL_KEYS = [
   // bits 0-7: 革命
   'revolution','revolutionReturn','revolutionOptional','stairRevolution',
-  'coudetar','omen','emperor','revolutionJoker',
+  'coudetar','omen','emperor','revolutionJoker','nanaRevo',
   // bits 8-10: 階段
   'stair','stairEffect','stairStackable',
   // bits 11-13: 縛り
@@ -122,7 +122,7 @@ const CATEGORIES = [
   {
     id:'revolution', name:'革命',
     catDesc:'4枚同数字を一度に出すと強弱が逆転するルール群。\n例：ふだん最強の「2」が最弱になり「3」が最強になる。革命返しをONにすると、革命中にさらに4枚出すと元の強さに戻る。',
-    keys:['revolution','revolutionReturn','revolutionOptional','stairRevolution','coudetar','omen','emperor','revolutionJoker'],
+    keys:['revolution','revolutionReturn','revolutionOptional','stairRevolution','coudetar','omen','emperor','revolutionJoker','nanaRevo'],
   },
   {
     id:'stair', name:'階段',
@@ -152,7 +152,7 @@ const CATEGORIES = [
   {
     id:'toshiochi', name:'都落ち',
     catDesc:'前ラウンドの大富豪が1位でなければ大貧民に降格するルール。\n例：前ラウンド大富豪だったプレイヤーが2位以下だった場合、次ラウンドは大貧民として扱われる。',
-    keys:['toshiochi'],
+    keys:['toshiochi','gekokujo'],
   },
   {
     id:'joker', name:'Joker効果',
@@ -241,6 +241,12 @@ const SUB_ITEMS = {
       desc:'4枚出しにJokerを混ぜても革命が成立する（同数字3枚＋Joker1枚）。',
       example:'例：同数字3枚＋Joker1枚 の計4枚出しで革命成立。Joker単体では革命にならない。',
     },
+    {
+      key:'nanaRevo', label:'ナナサン革命', type:'bool', depends:'revolution',
+      dependsLabel:'革命ON 時のみ有効',
+      desc:'7を3枚同時に出すと革命が発動する。',
+      example:'例：♠7・♥7・♦7 の3枚を同時に出すと強弱逆転が発動。',
+    },
   ],
 
   stair: [
@@ -252,8 +258,8 @@ const SUB_ITEMS = {
     {
       key:'stairStackable', label:'階段を重ねられる', type:'bool', depends:'stair',
       dependsLabel:'階段ON 時のみ有効',
-      desc:'ONにすると階段の場には階段でしか返せない。OFFにすると階段を出したら場が流れる（8切りと同じ扱い）。',
-      example:'例 ON：♦3-4-5が出たら次の人は♥6-7-8など強い階段を返す必要あり。\n例 OFF：階段を出した瞬間場が流れ、出したプレイヤーが次の手番を得る。',
+      desc:'ON：場の階段の最小値より大きい最小値の階段を出せる（重ね可）。OFF：場の階段の最大値より大きい最小値の階段しか出せない（重ね不可）。',
+      example:'例 ON：場に♥3-4-5 → ♠4-5-6（最小4>3）でOK。\n例 OFF：場に♥3-4-5（最大5）→ ♠6-7-8（最小6>5）でないとNG。',
     },
     {
       key:'stairEffect', label:'階段中のカード効果', type:'bool', depends:'stair',
@@ -266,18 +272,18 @@ const SUB_ITEMS = {
   shibari: [
     {
       key:'markShibari', label:'マーク縛り', type:'bool',
-      desc:'同じマークのカードを2回連続で出すと「マーク縛り」が発動し、以降そのマークしか出せなくなる。',
-      example:'例：♠7の後に♠9を出すと♠縛り発動。以降は♠のカードしか出せない。場が流れると解除。',
+      desc:'同じマークを2回続けて出すと発動。以降そのマークしか出せなくなる。',
+      example:'例：♥5の後に♥9を出すと♥縛り発動。以降は♥のカードしか出せない。場が流れると解除。',
     },
     {
       key:'numberShibari', label:'数字縛り', type:'bool',
-      desc:'同じ数字のカードを2回連続で出すと「数字縛り」が発動し、以降その数字しか出せなくなる。',
-      example:'例：5×1枚の後に5×2枚を出すと5縛り発動。以降は5のカードしか出せない。',
+      desc:'連続した数字を2回続けて出すと発動。次のプレイヤーは続きの数字しか出せなくなる。',
+      example:'例：5の後に6を出すと縛り発動。次のプレイヤーは7しか出せない。',
     },
     {
       key:'bothShibari', label:'両縛り', type:'bool',
-      desc:'マーク縛りと数字縛りが同時に発動しうる設定。',
-      example:'例：♠7×1枚→♠7×2枚と出すと、♠縛り＋7縛りが同時発動。♠の7しか出せなくなる。',
+      desc:'マークと数字の両方が縛られる。同じマークで連続した数字を2回続けると発動。',
+      example:'例：♥5の後に♥6を出すと縛り発動。次のプレイヤーは♥7しか出せない。',
     },
     { key:null, label:'縛り発動回数', type:'fixed', value:'2回' },
   ],
@@ -330,13 +336,13 @@ const SUB_ITEMS = {
     },
     {
       key:'forbiddenWin2', label:'2あがり禁止', type:'three', depends:'forbiddenWin',
-      desc:'2を出して手札が0枚になってもあがりと認められない。',
-      example:'「やさしい」：最後の1枚が2だった場合のみ適用。\n例：手札が2×1枚だけで出すとあがりにならず永遠パス（失格）になる。',
+      desc:'2を含む出し方であがると失格になる。',
+      example:'「やさしい」：2のみであがると失格。階段・エンペラー等2以外の数字を含む出し方であがった場合は失格にならない。\n「ON」：2を含む出し方であがると全て失格（階段・エンペラー等も含む）。',
     },
     {
       key:'forbiddenWinJoker', label:'Jokerあがり禁止', type:'three', depends:'forbiddenWin',
-      desc:'Jokerを出して手札が0枚になってもあがりと認められない。',
-      example:'「やさしい」：最後の1枚がJokerだった場合のみ適用。',
+      desc:'Jokerを含む出し方であがると失格になる。',
+      example:'「やさしい」：Jokerのみであがると失格。他の数字を含む出し方であがった場合は失格にならない。\n「ON」：Jokerを含む出し方であがると全て失格。',
     },
     {
       key:'forbiddenWin8', label:'8あがり禁止', type:'bool',
@@ -361,8 +367,13 @@ const SUB_ITEMS = {
   toshiochi: [
     {
       key:'toshiochi', label:'都落ち', type:'bool',
-      desc:'前ラウンドの大富豪が1位以外だった場合、次ラウンドは大貧民に降格するルール。',
-      example:'例：大富豪だったAさんが3位になると、次ラウンドはAさんが大貧民。元の大貧民だったBさんは貧民に繰り上がる。',
+      desc:'前ラウンドの大富豪が今ラウンドで1位でないと確定した瞬間（誰かが先に1位通過）にリタイア。リタイアは大貧民から順に埋まる。',
+      example:'例：大富豪だったAさんが他の人に先に上がられた瞬間、Aさんは大貧民確定でリタイア。',
+    },
+    {
+      key:'gekokujo', label:'下剋上', type:'bool',
+      desc:'前ラウンドの大貧民が1位通過した瞬間にラウンド終了。次ラウンドの階級が全入れ替えになる。',
+      example:'例：大貧民だったAさんが1位通過 → 大貧民↔大富豪・貧民↔富豪が入れ替わり。禁止あがりで既にリタイア割り当てがあっても下剋上が上書きして全入れ替え適用。',
     },
   ],
 
@@ -434,8 +445,8 @@ const SUB_ITEMS = {
     },
     {
       key:'tenpenchi', label:'天変地異', type:'bool',
-      desc:'各ラウンド開始時に「大貧民」と「貧民」の手札を丸ごと交換するルール。',
-      example:'例：大貧民が良い手札を引いていても、開始前に貧民と全交換される。',
+      desc:'カード交換後に大貧民の手札が10以下のカードしかない場合に自動発動。大貧民↔大富豪・貧民↔富豪の手札を丸ごと交換するルール。',
+      example:'例：カード交換後に大貧民の手札がすべて10以下 → 自動で大富豪と手札を全交換。',
     },
   ],
 };

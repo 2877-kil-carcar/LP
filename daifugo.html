@@ -482,6 +482,11 @@ function startRoomListener() {
     const players = room.players || {};
     const pids    = Object.keys(players);
 
+    if (room.status === 'playing') {
+      location.href = `daifugo-game.html?room=${ROOM}&pid=${MY_PID}&name=${encodeURIComponent(MY_NAME)}`;
+      return;
+    }
+
     if (room.rules) rules = { ...DEFAULT_RULES, ...room.rules };
 
     const slots = document.getElementById('playerSlots');
@@ -528,9 +533,69 @@ window.leaveRoom = async function() {
   location.href = 'daifugo.html';
 };
 
-window.hostStartGame = function() {
-  showToast('ゲーム画面は近日公開！');
+window.hostStartGame = async function() {
+  const snap = await get(roomRef);
+  if (!snap.exists()) return;
+  const room = snap.val();
+  const pids = Object.keys(room.players || {});
+  if (pids.length < 2) { showToast('2人以上必要です'); return; }
+
+  // カードを配る
+  const deck = shuffle(makeDeck());
+  const hands = dealCards(deck, pids);
+  const scores = {};
+  pids.forEach(p => scores[p] = 0);
+
+  // ♦3を持つプレイヤーを探す
+  let starterPid = pids[0];
+  for (const pid of pids) {
+    if ((hands[pid] || []).some(c => c.s === 'D' && c.n === 3)) { starterPid = pid; break; }
+  }
+
+  const updates = {};
+  pids.forEach(pid => { updates[`rooms_daifugo/${ROOM}/hands/${pid}`] = hands[pid]; });
+  updates[`rooms_daifugo/${ROOM}/status`] = 'playing';
+  updates[`rooms_daifugo/${ROOM}/game`] = {
+    round: 1,
+    turn: starterPid,
+    direction: 1,
+    turnOrder: pids,
+    field: [],
+    fieldPid: null,
+    passCount: 0,
+    revolution: false,
+    elevenBack: false,
+    omen: false,
+    shibari: null,
+    rankings: [],
+    scores,
+    finished: [],
+    disqualified: [],
+    forbidden: {},
+    phase: 'playing',
+  };
+  await update(ref(db), updates);
+  location.href = `daifugo-game.html?room=${ROOM}&pid=${MY_PID}&name=${encodeURIComponent(MY_NAME)}`;
 };
+
+// デッキ生成
+function makeDeck() {
+  const deck = [];
+  for (const s of ['S','H','D','C']) for (let n = 3; n <= 15; n++) deck.push({s, n});
+  deck.push({s:'JK',n:16},{s:'JK',n:16});
+  return deck;
+}
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function dealCards(deck, pids) {
+  const hands = {};
+  pids.forEach(p => hands[p] = []);
+  deck.forEach((c,i) => hands[pids[i % pids.length]].push(c));
+  return hands;
+}
 
 // ===== Toast =====
 function showToast(msg) {
