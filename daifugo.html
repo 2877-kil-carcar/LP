@@ -572,6 +572,7 @@ window.hostStartGame = async function() {
     finished: [],
     disqualified: [],
     forbidden: {},
+    pendingClear: false,
     phase: 'playing',
   };
   await update(ref(db), updates);

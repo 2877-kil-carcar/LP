@@ -431,6 +431,8 @@ function meetsShibari(cards, shibari, gs) {
 
 function canPlay(cards, gs, rules) {
   if (!cards.length) return false;
+  // pendingClear中は誰も出せない（全員パス待ち）
+  if (gs.pendingClear) return false;
   if (!isValidStructure(cards, gs, rules)) return false;
   const field = gs.field || [];
 
@@ -629,8 +631,16 @@ function activeCount(gs) {
 
 // ===== Field clear helpers =====
 function fieldClearEffect(pid, gs, rules) {
-  // Returns partial state when field clears
-  return { field:[], fieldPid:null, passCount:0, turn:pid, shibari:null, elevenBack:false };
+  return { field:[], fieldPid:null, passCount:0, turn:pid, shibari:null, elevenBack:false, pendingClear:false };
+}
+
+// 場流れ待ち（全員パスで流れる）
+function setPendingClear(pid, newGs) {
+  newGs.pendingClear = true;
+  newGs.fieldPid     = pid;   // このプレイヤーが場流れ後に手番
+  newGs.passCount    = 0;
+  // 次の手番は通常順（次のアクティブプレイヤー）
+  newGs.turn = nextActivePid(pid, newGs);
 }
 
 // ===== Rank determination =====
@@ -689,6 +699,7 @@ function rankPoint(name) {
 // ===== Apply a play =====
 async function applyPlay(cards, pid) {
   if (!gs || gs.turn !== pid) return;
+  try {
 
   const hand = pid === MY_PID ? myHand : [];
   const isMe = pid === MY_PID;
@@ -743,42 +754,39 @@ async function applyPlay(cards, pid) {
 
   // Field-clearing effects
   let fieldCleared = false;
+  const nj = cards.filter(c => c.s !== 'JK');
+  const jokerBonus = (rules.jokerEffect && cards.some(c => c.s === 'JK')) ? 1 : 0;
 
-  // 8切り
+  // 8切り（全員パス後に場が流れる）
   if (rules.eightCut) {
-    const nj = cards.filter(c => c.s !== 'JK');
     const allEight = nj.length > 0 && nj.every(c => c.n === 8);
     const stairWithEight = rules.stairEffect && isStair(cards) && nj.some(c => c.n === 8);
     if (allEight || stairWithEight) {
-      Object.assign(newGs, fieldClearEffect(pid, gs, rules)); fieldCleared = true; showToast('8切り！');
+      setPendingClear(pid, newGs); fieldCleared = true; showToast('8切り！ 全員パスで場が流れます');
     }
   }
   // 4止め
   if (!fieldCleared && rules.fourStop && cards.length >= 2) {
-    const nj = cards.filter(c => c.s !== 'JK');
-    if (nj.every(c => c.n === 4)) { Object.assign(newGs, fieldClearEffect(pid, gs, rules)); fieldCleared = true; showToast('4止め！'); }
+    if (nj.every(c => c.n === 4)) { setPendingClear(pid, newGs); fieldCleared = true; showToast('4止め！ 全員パスで場が流れます'); }
   }
-  // Sandstorm
+  // 砂嵐
   if (!fieldCleared && isSandstorm(cards, rules) && !gs.omen) {
-    Object.assign(newGs, fieldClearEffect(pid, gs, rules)); fieldCleared = true; showToast('砂嵐！');
+    setPendingClear(pid, newGs); fieldCleared = true; showToast('砂嵐！ 全員パスで場が流れます');
   }
   // 救急車
   if (!fieldCleared && rules.ambulance && cards.length === 2) {
-    const nj = cards.filter(c => c.s !== 'JK');
-    if (nj.every(c => c.n === 9)) { Object.assign(newGs, fieldClearEffect(pid, gs, rules)); fieldCleared = true; showToast('救急車！'); }
+    if (nj.every(c => c.n === 9)) { setPendingClear(pid, newGs); fieldCleared = true; showToast('救急車！ 全員パスで場が流れます'); }
   }
   // ろくろ首
   if (!fieldCleared && rules.rokuro && cards.length === 2) {
-    const nj = cards.filter(c => c.s !== 'JK');
-    if (nj.every(c => c.n === 6)) { Object.assign(newGs, fieldClearEffect(pid, gs, rules)); fieldCleared = true; showToast('ろくろ首！'); }
+    if (nj.every(c => c.n === 6)) { setPendingClear(pid, newGs); fieldCleared = true; showToast('ろくろ首！ 全員パスで場が流れます'); }
   }
   // ♠3返し
   if (!fieldCleared && isSpadeThreeReturn(cards, prevField, rules)) {
-    Object.assign(newGs, fieldClearEffect(pid, gs, rules)); fieldCleared = true; showToast('♠3返し！');
+    setPendingClear(pid, newGs); fieldCleared = true; showToast('♠3返し！ 全員パスで場が流れます');
   }
   // イレブンバック
   if (rules.elevenBack) {
-    const nj = cards.filter(c => c.s !== 'JK');
     if (nj.some(c => c.n === 11)) {
       newGs.elevenBack = !newGs.elevenBack;
       showToast(newGs.elevenBack ? '11バック発動！' : '11バック解除');
@@ -796,30 +804,46 @@ async function applyPlay(cards, pid) {
   }
 
   // Determine sub-actions (7渡し, 10捨て, Qボンバー)
-  let subPhase = null;
-  const jokerBonus = (rules.jokerEffect && cards.some(c => c.s === 'JK')) ? 1 : 0;
-  const nj = cards.filter(c => c.s !== 'JK');
+  // 複数同時発動可能（例: 7-8-9-10の階段 → 7渡し→10捨て順番に処理）
+  // fieldCleared=trueでも発動（サブアクション先に解決 → 8切りpendingClear待ちへ）
+  const subPhaseList = [];
 
   if (rules.sevenPass && nj.some(c => c.n === 7)) {
     const count = nj.filter(c => c.n === 7).length + jokerBonus;
-    subPhase = { type:'sevenPass', pid, count, target: nextActivePid(pid, newGs) };
-  } else if (rules.tenDiscard && nj.some(c => c.n === 10)) {
+    subPhaseList.push({ type:'sevenPass', pid, count, target: nextActivePid(pid, newGs), playedCards: cards });
+  }
+  if (rules.tenDiscard && nj.some(c => c.n === 10)) {
     const count = nj.filter(c => c.n === 10).length + jokerBonus;
-    subPhase = { type:'tenDiscard', pid, count };
-  } else if (rules.queenBomber && nj.length >= 2 && nj.every(c => c.n === 12)) {
+    subPhaseList.push({ type:'tenDiscard', pid, count, playedCards: cards });
+  }
+  if (subPhaseList.length === 0 && rules.queenBomber && nj.length >= 1 && nj.every(c => c.n === 12)) {
     const count = nj.length + jokerBonus;
-    subPhase = { type:'queenBomb', pid, count };
+    subPhaseList.push({ type:'queenBomb', pid, count });
   }
+  const subPhase = subPhaseList[0] || null;
+  const subPhaseQueue = subPhaseList.slice(1);
 
-  // 5スキップ
+  // 5スキップ（スキップ数をpassCountに加算して場流れ判定）
   let skipCount = 0;
-  if (rules.fiveSkip && nj.some(c => c.n === 5)) {
+  if (!fieldCleared && rules.fiveSkip && nj.some(c => c.n === 5)) {
     skipCount = nj.filter(c => c.n === 5).length;
-    if (skipCount > 0) showToast(`5スキップ！×${skipCount}`);
+    if (skipCount > 0) {
+      showToast(`5スキップ！×${skipCount}`);
+      newGs.passCount = (newGs.passCount || 0) + skipCount;
+      const actAfterSkip = (newGs.turnOrder || []).filter(p => isActive(p, newGs));
+      const thr = (newGs.fieldPid && isActive(newGs.fieldPid, newGs) && (newGs.field||[]).length > 0)
+        ? actAfterSkip.length - 1 : actAfterSkip.length;
+      if (newGs.passCount >= thr) {
+        const nx = newGs.fieldPid && isActive(newGs.fieldPid, newGs)
+          ? newGs.fieldPid : nextActivePid(newGs.fieldPid || pid, newGs);
+        Object.assign(newGs, fieldClearEffect(nx, newGs, rules));
+        fieldCleared = true; skipCount = 0;
+      }
+    }
   }
 
-  // 9リバース
-  if (rules.nineReverse && nj.some(c => c.n === 9) && !fieldCleared) {
+  // 9リバース（8切り等で場が流れる場合も発動）
+  if (rules.nineReverse && nj.some(c => c.n === 9)) {
     newGs.direction *= -1;
     showToast('9リバース！');
   }
@@ -832,11 +856,13 @@ async function applyPlay(cards, pid) {
     // If field cleared, turn is already pid
   } else {
     newGs.subPhase = subPhase;
+    newGs.subPhaseQueue = subPhaseQueue.length > 0 ? subPhaseQueue : null;
     newGs.turn = pid; // Stay on same player for modal
   }
 
-  // Check if round should end
-  if (shouldEndRound(newGs)) {
+  // Check if round should end (also ends on 下剋上)
+  if (shouldEndRound(newGs) || newGs.phase === 'gekokujo') {
+    delete newGs.subPhase; // don't carry subPhase into round-end state
     await endRound(newGs);
     return;
   }
@@ -848,6 +874,10 @@ async function applyPlay(cards, pid) {
     updates[`rooms_daifugo/${ROOM}/hands/${MY_PID}`] = newHand;
   }
   await update(ref(db), updates);
+  } catch(e) {
+    console.error('applyPlay error:', e);
+    showToast('エラー: ' + e.message);
+  }
 }
 
 function removeCards(hand, cards) {
@@ -957,6 +987,7 @@ window.confirmSelect = async function() {
   if (!sp) return;
   const cards = selModalSelected.map(i => selModalCards[i]);
   document.getElementById('selectModal').style.display = 'none';
+  try {
 
   let newGs = JSON.parse(JSON.stringify(gs));
   let updates = {};
@@ -982,12 +1013,25 @@ window.confirmSelect = async function() {
     }
   }
 
-  // Next turn
-  const skipCount = (sp.type === 'sevenPass' && rules.fiveSkip) ? 0 : 0;
-  newGs.turn = nextActivePid(MY_PID, newGs, skipCount);
+  // Next subPhase or next turn
+  const queue = newGs.subPhaseQueue || [];
+  if (queue.length > 0) {
+    // 次のサブアクションへ（例: 7渡し完了後に10捨て）
+    newGs.subPhase = queue[0];
+    newGs.subPhaseQueue = queue.slice(1).length > 0 ? queue.slice(1) : null;
+    newGs.turn = sp.pid;
+  } else {
+    delete newGs.subPhase;
+    newGs.subPhaseQueue = null;
+    newGs.turn = nextActivePid(MY_PID, newGs);
+  }
   if (shouldEndRound(newGs)) { await endRound(newGs); return; }
   updates[`rooms_daifugo/${ROOM}/game`] = newGs;
   await update(ref(db), updates);
+  } catch(e) {
+    console.error('confirmSelect error:', e);
+    showToast('エラー: ' + e.message);
+  }
 };
 
 // ===== Queen modal =====
@@ -1021,6 +1065,7 @@ window.confirmQueen = async function() {
   const sp = gs.subPhase;
   if (!sp) return;
   document.getElementById('queenModal').style.display = 'none';
+  try {
 
   let newGs = JSON.parse(JSON.stringify(gs));
   delete newGs.subPhase;
@@ -1048,6 +1093,10 @@ window.confirmQueen = async function() {
   if (shouldEndRound(newGs)) { await endRound(newGs); return; }
   updates[`rooms_daifugo/${ROOM}/game`] = newGs;
   await update(ref(db), updates);
+  } catch(e) {
+    console.error('confirmQueen error:', e);
+    showToast('エラー: ' + e.message);
+  }
 };
 
 // ===== Round end =====
@@ -1094,6 +1143,9 @@ async function endRound(newGs) {
   newGs.phase = isLastRound ? 'game_end' : 'round_end';
   newGs.field = [];
   newGs.shibari = null;
+  newGs.subPhase = null;      // always clear subPhase on round end
+  newGs.subPhaseQueue = null;
+  newGs.pendingClear = false;
 
   await set(ref(db, `rooms_daifugo/${ROOM}/game`), newGs);
 }
@@ -1161,10 +1213,14 @@ window.proceedNext = async function() {
     finished: [],
     disqualified: [],
     forbidden: {},
+    pendingClear: false,
     phase: needExchange ? 'exchange' : 'playing',
     subPhase: null,
+    subPhaseQueue: null,
   };
   updates[`rooms_daifugo/${ROOM}/game`] = newGs;
+  updates[`rooms_daifugo/${ROOM}/exchange_offers`] = null; // clear previous round's exchange data
+  updates[`rooms_daifugo/${ROOM}/exchange_done`]   = null;
   document.getElementById('roundEnd').classList.remove('show');
   await update(ref(db), updates);
 };
@@ -1346,6 +1402,10 @@ function showExchangeSelectUpper(count, lowerPid, lowerOffer, gsData) {
 
 // Execute the actual card swap
 async function executeExchange(pair, lowerOffer, upperReturn, gsData) {
+  // Guard against double execution (simultaneous mode race condition)
+  const doneCheck = await get(ref(db, `rooms_daifugo/${ROOM}/exchange_done/${pair.upper}`));
+  if (doneCheck.exists()) return;
+
   const updates = {};
   // Lower: remove offered, receive upperReturn
   const lowerHand = await getHand(pair.lower);
@@ -1545,7 +1605,8 @@ function toggleCard(idx) {
 function updatePlayButton() {
   const btnPlay = document.getElementById('btnPlay');
   const btnPass = document.getElementById('btnPass');
-  const isMyTurn = gs && gs.turn === MY_PID && !gs.forbidden?.[MY_PID] && gs.phase === 'playing';
+  // subPhase中（7渡し/10捨て/Qボンバーモーダル表示中）はボタンを無効化
+  const isMyTurn = gs && gs.turn === MY_PID && !gs.subPhase && !gs.forbidden?.[MY_PID] && gs.phase === 'playing';
   btnPass.disabled = !isMyTurn;
 
   if (!isMyTurn || !selected.length) {
@@ -1763,7 +1824,14 @@ function startListeners() {
       const queenOpen = document.getElementById('queenModal').style.display === 'block';
       if (!selOpen && !queenOpen) {
         if (sp.type === 'sevenPass' || sp.type === 'tenDiscard') {
-          openSelectModal(sp.type, sp.count, myHand);
+          const played = sp.playedCards || [];
+          const availHand = myHand.filter(c => !played.some(x => x.s === c.s && x.n === c.n));
+          if (availHand.length === 0) {
+            // 渡す/捨てるカードがない場合はスキップ
+            window.confirmSelect();
+          } else {
+            openSelectModal(sp.type, sp.count, availHand);
+          }
         } else if (sp.type === 'queenBomb') {
           openQueenModal(sp.count);
         }
@@ -1776,6 +1844,7 @@ function startListeners() {
   // My hand
   onValue(ref(db, `rooms_daifugo/${ROOM}/hands/${MY_PID}`), snap => {
     myHand = snap.val() || [];
+    selected = []; // clear selection when hand changes to prevent stale indices → TypeError
     if (gs) renderHand();
   });
 
