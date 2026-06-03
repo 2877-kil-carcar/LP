@@ -374,6 +374,8 @@ function isValidStructure(cards, gs, rules) {
   // All same number
   const allSame = nj.every(c => c.n === nj[0].n);
   if (allSame) return true;
+  // エンペラー（全マーク連続4枚）
+  if (isEmperor(cards, rules)) return true;
   // Stair
   if (rules.stair && cards.length >= 3) return isStair(cards);
   return false;
@@ -395,6 +397,19 @@ function isSpadeThreeReturn(cards, field, rules) {
 function isFieldStair(field) {
   if (!field || field.length < 3) return false;
   return isStair(field);
+}
+
+function isEmperor(cards, rules) {
+  if (!rules.emperor) return false;
+  const nj = cards.filter(c => c.s !== 'JK');
+  if (cards.length !== 4 || nj.length !== 4) return false;
+  const suits = new Set(nj.map(c => c.s));
+  if (suits.size !== 4) return false; // 全マーク必須
+  const nums = nj.map(c => c.n).sort((a,b) => a-b);
+  for (let i = 1; i < nums.length; i++) {
+    if (nums[i] !== nums[i-1] + 1) return false; // 連続必須
+  }
+  return true;
 }
 
 function meetsShibari(cards, shibari, gs) {
@@ -431,13 +446,30 @@ function canPlay(cards, gs, rules) {
   // Count must match
   if (cards.length !== field.length) return false;
 
-  // Both stair?
-  const fieldIsStair = isFieldStair(field);
-  const myIsStair    = isStair(cards);
-  if (fieldIsStair !== myIsStair) return false;
+  const fieldIsEmperor = isEmperor(field, rules);
+  const myIsEmperor    = isEmperor(cards, rules);
+  const fieldIsStair   = isFieldStair(field);
+  const myIsStair      = isStair(cards);
 
-  if (fieldIsStair) {
-    // Stair comparison
+  // エンペラー同士のみ対抗可
+  if (fieldIsEmperor && !myIsEmperor) return false;
+  if (!fieldIsEmperor && myIsEmperor) return false;
+
+  if (fieldIsEmperor && myIsEmperor) {
+    // エンペラー比較（stairStackable設定に従う）
+    const myMinN    = stairMinNum(cards);
+    const fieldMinN = stairMinNum(field);
+    const fieldMaxN = stairMaxNum(field);
+    if (rules.stairStackable) {
+      if (myMinN <= fieldMinN) return false;
+    } else {
+      if (myMinN <= fieldMaxN) return false;
+    }
+  } else if (fieldIsStair !== myIsStair) {
+    // 階段と通常は対抗不可
+    return false;
+  } else if (fieldIsStair) {
+    // 階段比較
     const myMinN    = stairMinNum(cards);
     const fieldMinN = stairMinNum(field);
     const fieldMaxN = stairMaxNum(field);
@@ -447,7 +479,7 @@ function canPlay(cards, gs, rules) {
       if (myMinN <= fieldMaxN) return false;
     }
   } else {
-    // Strength comparison
+    // 通常の強さ比較
     const myStr    = playMinStrength(cards, gs.revolution, gs.elevenBack);
     const fieldStr = playMinStrength(field,  gs.revolution, gs.elevenBack);
     if (myStr <= fieldStr) return false;
@@ -475,11 +507,8 @@ function checkRevolution(cards, gs, rules) {
   if (rules.nanaRevo && cards.length === 3 && nj.length === 3 && nj.every(c => c.n === 7)) return true;
   // coudetar: 9 × 3
   if (rules.coudetar && cards.length === 3 && nj.length === 3 && nj.every(c => c.n === 9)) return true;
-  // emperor: 4 consecutive, all different suits
-  if (rules.emperor && cards.length === 4 && isStair(cards)) {
-    const suits = new Set(nj.map(c => c.s));
-    if (suits.size === 4) return true;
-  }
+  // emperor: 全マーク含む連続4枚
+  if (isEmperor(cards, rules)) return true;
   // stairRevolution: stair of 4+
   if (rules.stairRevolution && rules.stair && isStair(cards) && cards.length >= 4) return true;
 
