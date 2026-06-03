@@ -56,6 +56,13 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
 .field-lbl{font-size:10px;color:var(--muted);text-align:center}
 .all-pass{font-size:11px;color:var(--gold);padding:3px 10px;border:1px solid var(--gold);border-radius:999px;animation:gpulse 1s ease infinite}
 @keyframes gpulse{0%,100%{opacity:1}50%{opacity:.45}}
+/* 流れた場 */
+.last-field-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0.45;pointer-events:none}
+.last-field-lbl{font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase}
+.last-field-cards{display:flex;gap:3px;align-items:center;justify-content:center}
+/* 続けるボタン */
+.btn-proceed{padding:10px 32px;background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid rgba(212,175,55,.5);border-radius:999px;color:var(--gold);font-family:'Noto Sans JP',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 2px 10px rgba(212,175,55,.2);letter-spacing:1px}
+.btn-proceed:hover{border-color:var(--gold);box-shadow:0 4px 18px rgba(212,175,55,.45);transform:translateY(-2px)}
 
 /* === CARDS === */
 .card{width:52px;height:78px;background:#FAFAFA;border-radius:5px;border:1px solid #bbb;position:relative;cursor:pointer;transition:transform .15s,box-shadow .15s;box-shadow:0 2px 6px rgba(0,0,0,.4);flex-shrink:0;user-select:none;-webkit-tap-highlight-color:transparent}
@@ -187,6 +194,11 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
     <div class="field-wrap">
       <div class="field-cards" id="fieldCards"></div>
       <div class="field-lbl" id="fieldLbl"></div>
+      <!-- 流れた場（場クリア後に前のカードを表示） -->
+      <div id="lastFieldWrap" style="display:none" class="last-field-wrap">
+        <div class="last-field-lbl">↑ 流れた場</div>
+        <div id="lastFieldCards" class="last-field-cards"></div>
+      </div>
     </div>
     <!-- 自分エリア -->
     <div class="self-area" id="selfArea">
@@ -196,6 +208,10 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
         <span id="selfScore" style="font-size:10px;color:var(--muted)"></span>
       </div>
       <div class="hand-scroll" id="selfHand"></div>
+      <!-- 場流れ後の続けるボタン（自分の番手時のみ表示） -->
+      <div id="proceedRow" style="display:none;margin-bottom:6px">
+        <button class="btn-proceed" onclick="proceedFromClear()">▶ 続ける</button>
+      </div>
       <div class="action-row" id="actionRow">
         <button class="btn-pass" id="btnPass" onclick="doPass()">パス</button>
         <button class="btn-play" id="btnPlay" onclick="doPlay()" disabled>出す</button>
@@ -631,7 +647,12 @@ function activeCount(gs) {
 
 // ===== Field clear helpers =====
 function fieldClearEffect(pid, gs, rules) {
-  return { field:[], fieldPid:null, passCount:0, turn:pid, shibari:null, elevenBack:false, pendingClear:false };
+  return {
+    field: [], fieldPid: null, passCount: 0, turn: pid,
+    shibari: null, elevenBack: false, pendingClear: false,
+    // 場流れ後に前のカードを表示するために保存
+    lastField: (gs.field && gs.field.length > 0) ? [...gs.field] : null,
+  };
 }
 
 // 場流れ待ち（全員パスで流れる）
@@ -707,9 +728,10 @@ async function applyPlay(cards, pid) {
 
   // Build new state
   let newGs = JSON.parse(JSON.stringify(gs));
-  newGs.field    = cards;
-  newGs.fieldPid = pid;
+  newGs.field     = cards;
+  newGs.fieldPid  = pid;
   newGs.passCount = 0;
+  newGs.lastField = null; // 新しいカードが出たら流れた場をクリア
 
   // Remove cards from hand
   let newHand = null;
@@ -951,6 +973,12 @@ window.doPlay = async function() {
 
 window.doPass = doPass;
 
+// ===== 場流れ後の「続ける」 =====
+window.proceedFromClear = async function() {
+  if (!gs || gs.turn !== MY_PID || !gs.lastField) return;
+  await update(ref(db, `rooms_daifugo/${ROOM}/game`), { lastField: null });
+};
+
 // ===== Select modal (7渡し / 10捨て) =====
 function openSelectModal(type, count, hand) {
   selModalCards = sortHand(hand);
@@ -1143,9 +1171,10 @@ async function endRound(newGs) {
   newGs.phase = isLastRound ? 'game_end' : 'round_end';
   newGs.field = [];
   newGs.shibari = null;
-  newGs.subPhase = null;      // always clear subPhase on round end
+  newGs.subPhase = null;
   newGs.subPhaseQueue = null;
   newGs.pendingClear = false;
+  newGs.lastField = null;
 
   await set(ref(db, `rooms_daifugo/${ROOM}/game`), newGs);
 }
@@ -1217,6 +1246,7 @@ window.proceedNext = async function() {
     phase: needExchange ? 'exchange' : 'playing',
     subPhase: null,
     subPhaseQueue: null,
+    lastField: null,
   };
   updates[`rooms_daifugo/${ROOM}/game`] = newGs;
   updates[`rooms_daifugo/${ROOM}/exchange_offers`] = null; // clear previous round's exchange data
@@ -1603,10 +1633,16 @@ function toggleCard(idx) {
 }
 
 function updatePlayButton() {
-  const btnPlay = document.getElementById('btnPlay');
-  const btnPass = document.getElementById('btnPass');
-  // subPhase中（7渡し/10捨て/Qボンバーモーダル表示中）はボタンを無効化
-  const isMyTurn = gs && gs.turn === MY_PID && !gs.subPhase && !gs.forbidden?.[MY_PID] && gs.phase === 'playing';
+  const btnPlay    = document.getElementById('btnPlay');
+  const btnPass    = document.getElementById('btnPass');
+  const proceedRow = document.getElementById('proceedRow');
+
+  // 流れた場がある場合：続けるボタン表示、出す/パスは無効
+  const hasLastField = !!(gs && gs.lastField && gs.lastField.length > 0);
+  proceedRow.style.display = (hasLastField && gs && gs.turn === MY_PID && gs.phase === 'playing') ? 'flex' : 'none';
+
+  // subPhase中（モーダル表示中）・lastField表示中はボタンを無効化
+  const isMyTurn = gs && gs.turn === MY_PID && !gs.subPhase && !hasLastField && !gs.forbidden?.[MY_PID] && gs.phase === 'playing';
   btnPass.disabled = !isMyTurn;
 
   if (!isMyTurn || !selected.length) {
@@ -1675,6 +1711,22 @@ function renderField(gsData) {
   } else {
     const pid = gsData.fieldPid;
     lbl.textContent = pid ? (players[pid]?.name || pid) + ' が出した' : '';
+  }
+
+  // 流れた場の表示
+  const lastFieldWrap  = document.getElementById('lastFieldWrap');
+  const lastFieldCards = document.getElementById('lastFieldCards');
+  const lastField = gsData.lastField || [];
+  if (lastField.length > 0) {
+    lastFieldWrap.style.display = 'flex';
+    lastFieldCards.innerHTML = '';
+    lastField.forEach(c => {
+      const div = makeCardEl(c, true);
+      div.style.pointerEvents = 'none';
+      lastFieldCards.appendChild(div);
+    });
+  } else {
+    lastFieldWrap.style.display = 'none';
   }
 }
 
