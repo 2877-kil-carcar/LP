@@ -1350,18 +1350,11 @@
     box-shadow: 0 0 14px rgba(212,175,55,0.4);
   }
 
-  /* ── ギャラリー：カードが1枚ずつ立ち上がる（Apple風スタッガー） ── */
+  /* ── ギャラリー：カードが右→左に流れて 1,2,3 順に定位置へ（スクロール同期） ── */
+  /* 位置/不透明度は JS が getBoundingClientRect ベースで毎フレーム直接設定する。
+     JSが無くてもカードが消えないよう、既定は「見える」状態にしておく。 */
   .gallery-card {
-    opacity: 0;
-    transform: translateY(54px) scale(0.92);
-    transition:
-      opacity 0.7s cubic-bezier(.16,.84,.44,1),
-      transform 0.7s cubic-bezier(.16,.84,.44,1);
     will-change: transform, opacity;
-  }
-  .gallery-card.in {
-    opacity: 1;
-    transform: translateY(0) scale(1);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1552,12 +1545,33 @@ const revealObs = new IntersectionObserver((entries) => {
 }, { threshold: 0.12 });
 reveals.forEach(el => revealObs.observe(el));
 
-// ギャラリーカードのスタッガー出現（各カードが時間差で立ち上がる）
-const cardObs = new IntersectionObserver((entries, obs) => {
-  entries.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add('in'); obs.unobserve(e.target); }
+// ギャラリーカードを右→左に流して 1,2,3 順に定位置へ（スクロールに完全同期）
+// 写真が増えるほど、その分スクロール量＝演出が続く。着地後だけクリック有効。
+const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+function scrubGalleryCards() {
+  const grid = document.getElementById('galleryGrid');
+  if (!grid) return;
+  const cards = grid.querySelectorAll('.gallery-card');
+  const vh = window.innerHeight;
+  const start = vh * 0.96;  // カード上端がここに来たら出現開始
+  const end   = vh * 0.50;  // ここまで上がったら着地(=1)
+  cards.forEach((card, i) => {
+    const top = card.getBoundingClientRect().top;
+    let p = (start - top) / (start - end);
+    p -= (i % 3) * 0.14;            // 同じ行でも 左→右(1,2,3) の順に着地させる
+    p = Math.max(0, Math.min(1, p));
+    const e = easeOutCubic(p);
+    card.style.opacity = e.toFixed(3);
+    card.style.transform = `translateX(${((1 - e) * 90).toFixed(1)}px) scale(${(0.95 + e * 0.05).toFixed(3)})`;
+    card.style.pointerEvents = p >= 0.98 ? 'auto' : 'none'; // 着地後にクリック可
   });
-}, { threshold: 0.08, rootMargin: '0px 0px -8% 0px' });
+}
+let _cardTick = false;
+function onCardScroll() {
+  if (!_cardTick) { _cardTick = true; requestAnimationFrame(() => { _cardTick = false; scrubGalleryCards(); }); }
+}
+window.addEventListener('scroll', onCardScroll, { passive: true });
+window.addEventListener('resize', scrubGalleryCards);
 
 // ヒーロー後パネルの「ぼんやり浮上」はスクロール連動（update内で--riseProgressを更新）
 const risePanel = document.getElementById('risePanel');
@@ -1775,16 +1789,10 @@ function renderGallery() {
     card.appendChild(frame);
     card.appendChild(plate);
     galleryGrid.appendChild(card);
-
-    // 横位置(列)で時間差をつけて左→右の波のように立ち上げる
-    card.style.transitionDelay = `${(i % 3) * 90}ms`;
-    cardObs.observe(card);
   });
 
-  // 安全策：万一オブザーバーが発火しなくても、少し後に必ず表示する
-  setTimeout(() => {
-    galleryGrid.querySelectorAll('.gallery-card:not(.in)').forEach(c => c.classList.add('in'));
-  }, 1800);
+  // 生成直後に一度スクラブを反映（画面外カードは右に隠れ、画面内は着地）
+  scrubGalleryCards();
 }
 
 /* ============================================================
