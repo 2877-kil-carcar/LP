@@ -13,10 +13,10 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
 
 /* === GAME BOARD === */
 #gameScreen{position:fixed;inset:0;display:flex;flex-direction:column}
-.g-header{display:flex;align-items:center;justify-content:space-between;padding:5px 12px;background:rgba(0,0,0,0.7);border-bottom:1px solid rgba(196,30,58,0.3);font-size:11px;flex-shrink:0;z-index:10;gap:6px}
-.g-round{font-family:'Kaisei Decol',serif;color:var(--gold);font-size:13px;white-space:nowrap}
-.g-effects{display:flex;gap:4px;flex-wrap:wrap}
-.etag{padding:2px 7px;border-radius:999px;font-size:9px;font-weight:700;letter-spacing:1px}
+.g-header{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:rgba(0,0,0,0.78);border-bottom:2px solid rgba(196,30,58,0.45);font-size:15px;flex-shrink:0;z-index:10;gap:8px}
+.g-round{font-family:'Kaisei Decol',serif;color:var(--gold);font-size:19px;white-space:nowrap;font-weight:700}
+.g-effects{display:flex;gap:5px;flex-wrap:wrap}
+.etag{padding:4px 11px;border-radius:999px;font-size:13px;font-weight:700;letter-spacing:1px}
 .etag.rev{background:rgba(196,30,58,0.25);border:1px solid var(--red);color:var(--red)}
 .etag.eb{background:rgba(212,175,55,0.2);border:1px solid var(--gold);color:var(--gold)}
 .etag.sb{background:rgba(100,100,220,0.2);border:1px solid #aaf;color:#aaf}
@@ -89,9 +89,15 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
 /* === SELF AREA === */
 .self-area{position:absolute;bottom:0;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 6px 10px;background:linear-gradient(to top,rgba(0,0,0,.95) 60%,transparent);z-index:10}
 .self-info{display:flex;align-items:center;gap:8px;font-size:11px}
-.hand-scroll{display:flex;align-items:flex-end;overflow-x:auto;padding:2px 6px 2px;max-width:100vw;gap:4px;-webkit-overflow-scrolling:touch}
-.hand-scroll::-webkit-scrollbar{height:3px}
-.hand-scroll::-webkit-scrollbar-thumb{background:rgba(196,30,58,.4);border-radius:2px}
+/* 手札：横スクロールせず折り返して複数段表示（最大3人=最大18枚程度） */
+.hand-grid{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:center;gap:3px;width:100%;max-width:100vw;padding:2px 4px;max-height:46vh;overflow-y:auto}
+/* 手札カードは小型化、ただしスート・数字は大きく見せる */
+.hand-grid .card{width:42px;height:60px}
+.hand-grid .card .cnum{font-size:17px}
+.hand-grid .card .csut{font-size:14px}
+.hand-grid .card .cmid{font-size:30px}
+.hand-grid .card.joker .cmid{font-size:17px}
+.hand-grid .card.selected{transform:translateY(-10px)}
 /* fan for large hands */
 .hand-fan{position:relative;height:90px;width:100%;overflow:hidden}
 .hand-fan .card{position:absolute;bottom:0;transition:transform .15s,box-shadow .15s,left .1s}
@@ -150,9 +156,28 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
 .rs-score.neg{color:#e07070}
 .rs-score.zero{color:var(--muted)}
 
+/* === CHAT === */
+#chatToggle{position:fixed;left:10px;bottom:10px;width:46px;height:46px;border-radius:50%;background:rgba(20,5,5,.9);border:2px solid var(--red);color:var(--cream);font-size:20px;z-index:150;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+#chatToggle .chat-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:9px;background:var(--gold);color:#3d0a10;font-size:11px;font-weight:700;display:none;align-items:center;justify-content:center;padding:0 4px}
+#chatPanel{position:fixed;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;background:linear-gradient(160deg,#1e0808,#100505);border:1px solid rgba(196,30,58,.5);border-radius:16px 16px 0 0;z-index:201;display:none;flex-direction:column;max-height:70vh}
+#chatPanel.show{display:flex}
+.chat-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(196,30,58,.3)}
+.chat-head .chat-title{font-family:'Kaisei Decol',serif;font-size:16px;color:var(--gold)}
+.chat-close{background:none;border:none;color:var(--cream);font-size:20px;cursor:pointer}
+.chat-msgs{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:7px;min-height:140px}
+.chat-msg{font-size:14px;line-height:1.3;word-break:break-word}
+.chat-msg .cm-name{color:var(--gold);font-weight:700;margin-right:6px;font-size:12px}
+.chat-msg.mine{text-align:right}
+.chat-msg.mine .cm-name{color:var(--red2)}
+.chat-presets{display:flex;flex-wrap:wrap;gap:6px;padding:8px 14px 0}
+.chat-preset{padding:6px 12px;background:rgba(196,30,58,.18);border:1px solid rgba(196,30,58,.4);border-radius:999px;color:var(--cream);font-size:13px;cursor:pointer}
+.chat-input-row{display:flex;gap:8px;padding:10px 14px 14px}
+.chat-input{flex:1;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:10px;color:#fff;padding:10px 12px;font-size:15px;font-family:inherit}
+.chat-send{padding:10px 18px;background:linear-gradient(135deg,var(--red2),#8B0000);border:none;border-radius:10px;color:#fff;font-weight:700;font-size:14px;cursor:pointer}
+
 /* === TOAST === */
-#toast{position:fixed;top:48px;left:50%;transform:translateX(-50%) translateY(-16px);background:rgba(20,5,5,.97);border:1px solid rgba(196,30,58,.5);color:var(--cream);padding:9px 18px;border-radius:999px;font-size:12px;z-index:999;opacity:0;transition:all .3s;white-space:nowrap;pointer-events:none;max-width:90vw;text-align:center}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast{position:fixed;top:42%;left:50%;transform:translateX(-50%) scale(.85);background:rgba(20,5,5,.97);border:2px solid var(--red);color:#fff;padding:18px 34px;border-radius:18px;font-size:24px;font-weight:700;z-index:999;opacity:0;transition:all .25s;white-space:nowrap;pointer-events:none;max-width:92vw;text-align:center;box-shadow:0 0 40px rgba(196,30,58,.7)}
+#toast.show{opacity:1;transform:translateX(-50%) scale(1)}
 
 /* === TENPENCHI === */
 #tenpenchiBanner{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:180}
@@ -207,7 +232,7 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
         <span id="selfRankBadge" class="rbadge"></span>
         <span id="selfScore" style="font-size:10px;color:var(--muted)"></span>
       </div>
-      <div class="hand-scroll" id="selfHand"></div>
+      <div class="hand-grid" id="selfHand"></div>
       <!-- 場流れ後の続けるボタン（自分の番手時のみ表示） -->
       <div id="proceedRow" style="display:none;margin-bottom:6px">
         <button class="btn-proceed" onclick="proceedFromClear()">▶ 続ける</button>
@@ -274,10 +299,39 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
   </div>
 </div>
 
+<!-- オーメン 革命選択モーダル -->
+<div id="omenModal" style="display:none">
+  <div class="modal-bg">
+    <div class="modal-box">
+      <div class="modal-title">オーメン！</div>
+      <div class="modal-desc">革命効果を発動しますか？（場は全員パス後に流れます）</div>
+      <div class="modal-footer">
+        <button class="btn-confirm" onclick="confirmOmenRev(true)">革命する</button>
+        <button class="btn-pass" onclick="confirmOmenRev(false)">しない</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- 天変地異バナー -->
 <div id="tenpenchiBanner">
   <div class="tp-title">天変地異！</div>
   <div style="font-size:13px;color:var(--muted);text-align:center">大富豪↔大貧民・富豪↔貧民の手札が全交換されました</div>
+</div>
+
+<!-- チャット -->
+<button id="chatToggle" onclick="toggleChat()">💬<span class="chat-badge" id="chatBadge">0</span></button>
+<div id="chatPanel">
+  <div class="chat-head">
+    <span class="chat-title">💬 チャット</span>
+    <button class="chat-close" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-msgs" id="chatMsgs"></div>
+  <div class="chat-presets" id="chatPresets"></div>
+  <div class="chat-input-row">
+    <input class="chat-input" id="chatInput" type="text" maxlength="60" placeholder="メッセージを入力..." onkeydown="if(event.key==='Enter')sendChat()" />
+    <button class="chat-send" onclick="sendChat()">送信</button>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -285,7 +339,7 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
 <script src="daifugo-rules.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, get, set, update, onValue, onDisconnect }
+import { getDatabase, ref, get, set, update, onValue, onDisconnect, runTransaction, push }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const { DEFAULT_RULES } = window.DaifugoRules;
@@ -322,7 +376,11 @@ let gs      = null;   // game state
 let rules   = { ...DEFAULT_RULES };
 let myHand  = [];     // my cards
 let players = {};     // {pid: {name, index}}
-let selected = [];    // selected card indices
+let sortedHand = [];  // sorted view of myHand (selection is indexed into THIS)
+let selected = [];    // selected indices into sortedHand (handles duplicate jokers correctly)
+let handCounts = {};  // {pid: 残り手札枚数} — 全員分の枚数のみ表示用に保持
+let allHands = {};    // {pid: [カード]} — 観戦者(あがり/都落ち)が実カードを見るため保持
+let leftPlayers = {}; // {pid: true} — 切断などで永続離脱したプレイヤー
 let selModalCards = [];  // cards for select modal
 let selModalSelected = [];
 let queenSelected = [];
@@ -340,6 +398,15 @@ function playMinStrength(cards, revolution, elevenBack) {
   const nj = cards.filter(c => c.s !== 'JK');
   if (!nj.length) return 100;
   return Math.min(...nj.map(c => cardStrength(c, revolution, elevenBack)));
+}
+
+// 階段/エンペラーの強さ端点（革命・11バックで強弱が反転するのを反映）
+// rev時は小さい番号ほど強い → strength = 16 - n
+function stairStrengths(cards, gs) {
+  const rev = (gs.revolution !== gs.elevenBack);
+  const ns = cards.filter(c => c.s !== 'JK').map(c => c.n);
+  const strs = ns.map(n => rev ? (16 - n) : n);
+  return { low: Math.min(...strs), high: Math.max(...strs) };
 }
 
 function handMinCard(hand) {
@@ -371,15 +438,6 @@ function isStair(cards) {
     gaps += diff - 1;
   }
   return gaps <= jokers;
-}
-
-function stairMinNum(cards) {
-  const nj = cards.filter(c => c.s !== 'JK');
-  return Math.min(...nj.map(c => c.n));
-}
-function stairMaxNum(cards) {
-  const nj = cards.filter(c => c.s !== 'JK');
-  return Math.max(...nj.map(c => c.n));
 }
 
 function isValidStructure(cards, gs, rules) {
@@ -428,6 +486,15 @@ function isEmperor(cards, rules) {
   return true;
 }
 
+// 役の「先頭(最小)番号」を返す。階段でジョーカーが下端を埋めるケースを補正：
+// 内側の隙間を埋めて余ったジョーカーは下端を延長すると解釈する。
+function playLeadNum(cards) {
+  const nj = cards.filter(c => c.s !== 'JK');
+  if (!nj.length) return null;
+  // 余ったジョーカーは「上端」を延長する解釈 → 先頭(最小)番号は非JKの最小のまま
+  return Math.min(...nj.map(c => c.n));
+}
+
 function meetsShibari(cards, shibari, gs) {
   if (!shibari) return true;
   const nj = cards.filter(c => c.s !== 'JK');
@@ -439,8 +506,8 @@ function meetsShibari(cards, shibari, gs) {
     if (cardMarks !== reqMarks) return false;
   }
   if (shibari.type === 'number' || shibari.type === 'both') {
-    const minN = Math.min(...nj.map(c => c.n));
-    if (minN !== shibari.nextNum) return false;
+    const lead = playLeadNum(cards); // 階段+JKの下端補正込み
+    if (lead !== shibari.nextNum) return false;
   }
   return true;
 }
@@ -474,27 +541,25 @@ function canPlay(cards, gs, rules) {
   if (!fieldIsEmperor && myIsEmperor) return false;
 
   if (fieldIsEmperor && myIsEmperor) {
-    // エンペラー比較（stairStackable設定に従う）
-    const myMinN    = stairMinNum(cards);
-    const fieldMinN = stairMinNum(field);
-    const fieldMaxN = stairMaxNum(field);
+    // エンペラー比較（革命・11バックで強弱反転を反映）
+    const my = stairStrengths(cards, gs);
+    const fl = stairStrengths(field, gs);
     if (rules.stairStackable) {
-      if (myMinN <= fieldMinN) return false;
+      if (my.low <= fl.low) return false;   // 重ねOK：最弱端で比較
     } else {
-      if (myMinN <= fieldMaxN) return false;
+      if (my.low <= fl.high) return false;  // 重ねNG：自分の最弱端 > 場の最強端
     }
   } else if (fieldIsStair !== myIsStair) {
     // 階段と通常は対抗不可
     return false;
   } else if (fieldIsStair) {
-    // 階段比較
-    const myMinN    = stairMinNum(cards);
-    const fieldMinN = stairMinNum(field);
-    const fieldMaxN = stairMaxNum(field);
+    // 階段比較（革命・11バックで強弱反転を反映）
+    const my = stairStrengths(cards, gs);
+    const fl = stairStrengths(field, gs);
     if (rules.stairStackable) {
-      if (myMinN <= fieldMinN) return false;
+      if (my.low <= fl.low) return false;
     } else {
-      if (myMinN <= fieldMaxN) return false;
+      if (my.low <= fl.high) return false;
     }
   } else {
     // 通常の強さ比較
@@ -512,6 +577,7 @@ function canPlay(cards, gs, rules) {
 // ===== Revolution check =====
 function checkRevolution(cards, gs, rules) {
   if (!rules.revolution) return false;
+  if (gs.omen) return false; // オーメン発動後は革命禁止
   const nj = cards.filter(c => c.s !== 'JK');
   const jk = cards.filter(c => c.s === 'JK');
 
@@ -587,16 +653,19 @@ function computeShibari(prevField, newCards, gs, rules) {
 
   const pMarks = pNJ.map(c => c.s).sort().join('');
   const nMarks = nNJ.map(c => c.s).sort().join('');
-  const pMinN  = Math.min(...pNJ.map(c => c.n));
-  const nMinN  = Math.min(...nNJ.map(c => c.n));
+  // 階段+JKの下端補正込みの先頭番号で連続性を判定
+  const pMinN  = playLeadNum(prevField);
+  const nMinN  = playLeadNum(newCards);
 
+  // 強弱の向きは革命と11バックのXORで決まる（強さ計算cardStrengthと統一）
+  const rev = gs.revolution !== gs.elevenBack;
   const sameMarks  = pMarks === nMarks;
-  const consecutive = gs.revolution ? (nMinN === pMinN - 1) : (nMinN === pMinN + 1);
+  const consecutive = rev ? (nMinN === pMinN - 1) : (nMinN === pMinN + 1);
 
   // Update existing shibari
   if (gs.shibari) {
     if (gs.shibari.type === 'number' || gs.shibari.type === 'both') {
-      const nx = gs.revolution ? nMinN - 1 : nMinN + 1;
+      const nx = rev ? nMinN - 1 : nMinN + 1;
       return { ...gs.shibari, nextNum: nx };
     }
     return gs.shibari;
@@ -604,14 +673,14 @@ function computeShibari(prevField, newCards, gs, rules) {
 
   // Trigger new shibari
   if (rules.bothShibari && sameMarks && consecutive) {
-    const nx = gs.revolution ? nMinN - 1 : nMinN + 1;
+    const nx = rev ? nMinN - 1 : nMinN + 1;
     return { type:'both', marks: nNJ.map(c=>c.s), nextNum: nx };
   }
   if (rules.markShibari && sameMarks) {
     return { type:'mark', marks: nNJ.map(c=>c.s) };
   }
   if (rules.numberShibari && consecutive) {
-    const nx = gs.revolution ? nMinN - 1 : nMinN + 1;
+    const nx = rev ? nMinN - 1 : nMinN + 1;
     return { type:'number', marks:null, nextNum: nx };
   }
   return null;
@@ -670,8 +739,11 @@ function computeRankings(gs) {
   const n = (gs.turnOrder || []).length;
   const rankMap = {};
 
-  const fin = gs.finished || [];
-  const dis = gs.disqualified || [];
+  // 重複除去 ＆ disqualified を最優先（finishedにもいる場合はfinishedから除外）
+  // → 同一pidが上位/下位の両方に割り当たって順位が壊れるのを防ぐ
+  const dis = [...new Set(gs.disqualified || [])];
+  const disSet = new Set(dis);
+  const fin = [...new Set(gs.finished || [])].filter(pid => !disSet.has(pid));
 
   // Disqualified fill from bottom
   const bottomSlots = [];
@@ -715,6 +787,195 @@ function rankBadgeClass(name) {
 
 function rankPoint(name) {
   return {大富豪:2,富豪:1,平民:0,貧民:-1,大貧民:-2}[name] ?? 0;
+}
+
+// ====================================================================
+// カード効果メソッド群
+// 各メソッドは ctx を受け取り、「出されたカードを見て」条件判定し発動する。
+// ctx = { cards, nj, jk, jokerBonus, pid, prevField, gs(読取専用),
+//         newGs(変更対象), rules, fieldCleared, skipCount, subPhases[] }
+// ====================================================================
+
+// 革命（4枚同数 / 7×3 ナナサン革命 等：checkRevolutionが判定）
+function fxRevolution(ctx) {
+  if (checkRevolution(ctx.cards, ctx.gs, ctx.rules)) {
+    ctx.newGs.revolution = !ctx.newGs.revolution;
+    showToast('🔄 革命！');
+  }
+}
+
+// オーメン（6×3）：場が流れ（全員パス後）、以降すべての効果が無効になる。
+// 革命効果を持つため、革命ルールONなら発動者が「革命する/しない」を選べる（omenRev subPhase）。
+function fxOmen(ctx) {
+  if (checkOmen(ctx.cards, ctx.gs, ctx.rules)) {
+    ctx.newGs.omen = true;
+    // 場流れ（他の場流れ系と統一：全員パス後に流れる）
+    setPendingClear(ctx.pid, ctx.newGs);
+    ctx.fieldCleared = true;
+    // 革命効果：革命ルールONなら発動者が選択（モーダル）。既存の革命状態は選択結果で上書き。
+    if (ctx.rules.revolution) {
+      ctx.subPhases.push({ type:'omenRev', pid: ctx.pid });
+    }
+    showToast('オーメン！ 場が流れます（以降すべての効果が無効）');
+  }
+}
+
+// ---- 場流れ系：各ルールを完全に独立したメソッドに分割 ----
+// 共通ヘルパ：発動が確定したら場流れ待ち(pendingClear)にする
+function triggerFieldClear(ctx, msg) {
+  setPendingClear(ctx.pid, ctx.newGs);
+  ctx.fieldCleared = true;
+  showToast(msg);
+}
+
+// 各判定メソッドは「出たカード(ctx)を見て」自分の条件だけをチェックする（true=発動）
+// 8切り：非ジョーカーが全部8（1枚でもOK・ジョーカー混じりでもOK）、
+//         または階段効果ONで「8を含む階段」
+function matchEightCut(ctx) {
+  if (!ctx.rules.eightCut) return false;
+  const allEight = ctx.nj.length > 0 && ctx.nj.every(c => c.n === 8);
+  const stairWithEight = ctx.rules.stairEffect && isStair(ctx.cards) && ctx.nj.some(c => c.n === 8);
+  return allEight || stairWithEight;
+}
+// 4止め：4が「ちょうど2枚」（4+ジョーカーの2枚ペアも可）。3枚以上は通常の組。
+function matchFourStop(ctx) {
+  return ctx.rules.fourStop && ctx.cards.length === 2 && ctx.nj.length > 0 && ctx.nj.every(c => c.n === 4);
+}
+// 砂嵐：3を「ちょうど3枚」（ジョーカー置換なし）。2枚は通常のペア。
+function matchSandstorm(ctx) {
+  return isSandstorm(ctx.cards, ctx.rules) && !ctx.gs.omen;
+}
+// 救急車：9が「ちょうど2枚」（9+ジョーカーの2枚ペアも可）。
+function matchAmbulance(ctx) {
+  return ctx.rules.ambulance && ctx.cards.length === 2 && ctx.nj.length > 0 && ctx.nj.every(c => c.n === 9);
+}
+// ろくろ首：6が「ちょうど2枚」（6+ジョーカーの2枚ペアも可）。
+function matchRokuro(ctx) {
+  return ctx.rules.rokuro && ctx.cards.length === 2 && ctx.nj.length > 0 && ctx.nj.every(c => c.n === 6);
+}
+// ♠3返し：場が単独ジョーカーのとき♠3で返す。
+function matchSpadeThreeReturn(ctx) {
+  return isSpadeThreeReturn(ctx.cards, ctx.prevField, ctx.rules);
+}
+
+// 個別の効果メソッド（各自 fieldCleared を見て、未発動なら自分の判定）
+function fxEightCut(ctx)         { if (!ctx.fieldCleared && matchEightCut(ctx))         triggerFieldClear(ctx, '8切り！ 全員パスで場が流れます'); }
+function fxFourStop(ctx)         { if (!ctx.fieldCleared && matchFourStop(ctx))         triggerFieldClear(ctx, '4止め！ 全員パスで場が流れます'); }
+function fxSandstorm(ctx)        { if (!ctx.fieldCleared && matchSandstorm(ctx))        triggerFieldClear(ctx, '砂嵐！ 全員パスで場が流れます'); }
+function fxAmbulance(ctx)        { if (!ctx.fieldCleared && matchAmbulance(ctx))        triggerFieldClear(ctx, '救急車！ 全員パスで場が流れます'); }
+function fxRokuro(ctx)           { if (!ctx.fieldCleared && matchRokuro(ctx))           triggerFieldClear(ctx, 'ろくろ首！ 全員パスで場が流れます'); }
+function fxSpadeThreeReturn(ctx) { if (!ctx.fieldCleared && matchSpadeThreeReturn(ctx)) triggerFieldClear(ctx, '♠3返し！ 全員パスで場が流れます'); }
+
+// イレブンバック（11を含むと反転トグル。場流れとは独立）
+function fxElevenBack(ctx) {
+  if (ctx.rules.elevenBack && ctx.nj.some(c => c.n === 11)) {
+    ctx.newGs.elevenBack = !ctx.newGs.elevenBack;
+    showToast(ctx.newGs.elevenBack ? '11バック発動！' : '11バック解除');
+  }
+}
+
+// 階段でstairStackable OFFの場合は重ねられず即流れ
+function fxStairClear(ctx) {
+  if (ctx.fieldCleared) return;
+  if (ctx.rules.stair && !ctx.rules.stairStackable && isStair(ctx.cards) && ctx.prevField.length > 0) {
+    // newGs.field には今出した階段が入っている。これをlastFieldに残すためnewGsを渡す
+    // （gsを渡すと直前の相手の札がlastFieldになり、出した階段が消えて見える）
+    Object.assign(ctx.newGs, fieldClearEffect(ctx.pid, ctx.newGs, ctx.rules));
+    ctx.fieldCleared = true;
+  }
+}
+
+// 縛り更新（場が流れていない場合のみ）
+function fxShibari(ctx) {
+  if (!ctx.fieldCleared) {
+    ctx.newGs.shibari = computeShibari(ctx.prevField, ctx.cards, ctx.gs, ctx.rules);
+  }
+}
+
+// サブアクション（7渡し/10捨て/Qボンバー）。7渡し→10捨ての順で複数キュー可。
+// 場流れ(fieldCleared)時でも発動 → 解決後にpendingClearで流れる。
+function fxSubActions(ctx) {
+  const { nj, jokerBonus, pid, newGs, rules, cards } = ctx;
+  if (rules.sevenPass && nj.some(c => c.n === 7)) {
+    const count = nj.filter(c => c.n === 7).length + jokerBonus;
+    ctx.subPhases.push({ type:'sevenPass', pid, count, target: nextActivePid(pid, newGs), playedCards: cards });
+  }
+  if (rules.tenDiscard && nj.some(c => c.n === 10)) {
+    const count = nj.filter(c => c.n === 10).length + jokerBonus;
+    ctx.subPhases.push({ type:'tenDiscard', pid, count, playedCards: cards });
+  }
+  if (ctx.subPhases.length === 0 && rules.queenBomber && nj.length >= 1 && nj.every(c => c.n === 12)) {
+    const count = nj.length + jokerBonus;
+    ctx.subPhases.push({ type:'queenBomb', pid, count });
+  }
+}
+
+// 5スキップ（出した5の枚数分スキップ。passCountに加算し1周で流す判定）
+function fxFiveSkip(ctx) {
+  if (ctx.fieldCleared) return;
+  if (!ctx.rules.fiveSkip || !ctx.nj.some(c => c.n === 5)) return;
+  const { newGs, pid } = ctx;
+  ctx.skipCount = ctx.nj.filter(c => c.n === 5).length;
+  if (ctx.skipCount <= 0) return;
+  showToast(`5スキップ！×${ctx.skipCount}`);
+  newGs.passCount = (newGs.passCount || 0) + ctx.skipCount;
+  const act = (newGs.turnOrder || []).filter(p => isActive(p, newGs));
+  const thr = (newGs.fieldPid && isActive(newGs.fieldPid, newGs) && (newGs.field || []).length > 0)
+    ? act.length - 1 : act.length;
+  if (newGs.passCount >= thr) {
+    const nx = newGs.fieldPid && isActive(newGs.fieldPid, newGs)
+      ? newGs.fieldPid : nextActivePid(newGs.fieldPid || pid, newGs);
+    Object.assign(newGs, fieldClearEffect(nx, newGs, ctx.rules));
+    ctx.fieldCleared = true; ctx.skipCount = 0;
+  }
+}
+
+// 9リバース（順番反転。8切り等で場が流れる場合も発動 = パス順が変わる）
+function fxNineReverse(ctx) {
+  if (ctx.rules.nineReverse && ctx.nj.some(c => c.n === 9)) {
+    ctx.newGs.direction *= -1;
+    showToast('9リバース！');
+  }
+}
+
+// パイプライン定義（この順に通す）
+// 場流れ系は個別メソッドを並べる。各自 !fieldCleared を見て自分の条件で発動。
+const EFFECT_PIPELINE = [
+  fxRevolution,
+  fxOmen,
+  fxNineReverse, // ← directionを先に確定（場流れのturn計算が反転後の向きを使うように）
+  // --- 場流れ系（独立メソッド・上から順に判定、最初に合致した1つだけ発動）---
+  fxEightCut,
+  fxFourStop,
+  fxSandstorm,
+  fxAmbulance,
+  fxRokuro,
+  fxSpadeThreeReturn,
+  // ---
+  fxElevenBack,
+  fxStairClear,
+  fxShibari,
+  fxSubActions,
+  fxFiveSkip,
+];
+
+function runEffectPipeline({ cards, pid, prevField, gs, newGs, rules }) {
+  const ctx = {
+    cards, pid, prevField, gs, newGs, rules,
+    nj: cards.filter(c => c.s !== 'JK'),
+    jk: cards.filter(c => c.s === 'JK'),
+    jokerBonus: (rules.jokerEffect && cards.some(c => c.s === 'JK')) ? 1 : 0,
+    fieldCleared: false,
+    skipCount: 0,
+    subPhases: [],
+  };
+  // オーメン発動後は「以降すべての効果が無効」。
+  // 既にomenが立っている状態での出しでは、革命/場流れ/縛り/特殊カード等を一切発動させない。
+  // （omenを発動させる当の6×3は gs.omen=false の状態なので通常どおりパイプラインを通る）
+  if (gs.omen) return ctx;
+
+  for (const fn of EFFECT_PIPELINE) fn(ctx);
+  return ctx;
 }
 
 // ===== Apply a play =====
@@ -761,114 +1022,17 @@ async function applyPlay(cards, pid) {
     retirePlayer(pid, newGs);
   }
 
-  // Revolution
-  if (checkRevolution(cards, gs, rules)) {
-    newGs.revolution = !newGs.revolution;
-    showToast('🔄 革命！');
-  }
-
-  // Omen
-  if (checkOmen(cards, gs, rules)) {
-    newGs.omen = true;
-    newGs.revolution = !newGs.revolution;
-    showToast('オーメン！以降革命禁止');
-  }
-
-  // Field-clearing effects
-  let fieldCleared = false;
-  const nj = cards.filter(c => c.s !== 'JK');
-  const jokerBonus = (rules.jokerEffect && cards.some(c => c.s === 'JK')) ? 1 : 0;
-
-  // 8切り（全員パス後に場が流れる）
-  if (rules.eightCut) {
-    const allEight = nj.length > 0 && nj.every(c => c.n === 8);
-    const stairWithEight = rules.stairEffect && isStair(cards) && nj.some(c => c.n === 8);
-    if (allEight || stairWithEight) {
-      setPendingClear(pid, newGs); fieldCleared = true; showToast('8切り！ 全員パスで場が流れます');
-    }
-  }
-  // 4止め
-  if (!fieldCleared && rules.fourStop && cards.length >= 2) {
-    if (nj.every(c => c.n === 4)) { setPendingClear(pid, newGs); fieldCleared = true; showToast('4止め！ 全員パスで場が流れます'); }
-  }
-  // 砂嵐
-  if (!fieldCleared && isSandstorm(cards, rules) && !gs.omen) {
-    setPendingClear(pid, newGs); fieldCleared = true; showToast('砂嵐！ 全員パスで場が流れます');
-  }
-  // 救急車
-  if (!fieldCleared && rules.ambulance && cards.length === 2) {
-    if (nj.every(c => c.n === 9)) { setPendingClear(pid, newGs); fieldCleared = true; showToast('救急車！ 全員パスで場が流れます'); }
-  }
-  // ろくろ首
-  if (!fieldCleared && rules.rokuro && cards.length === 2) {
-    if (nj.every(c => c.n === 6)) { setPendingClear(pid, newGs); fieldCleared = true; showToast('ろくろ首！ 全員パスで場が流れます'); }
-  }
-  // ♠3返し
-  if (!fieldCleared && isSpadeThreeReturn(cards, prevField, rules)) {
-    setPendingClear(pid, newGs); fieldCleared = true; showToast('♠3返し！ 全員パスで場が流れます');
-  }
-  // イレブンバック
-  if (rules.elevenBack) {
-    if (nj.some(c => c.n === 11)) {
-      newGs.elevenBack = !newGs.elevenBack;
-      showToast(newGs.elevenBack ? '11バック発動！' : '11バック解除');
-    }
-  }
-
-  // Stair clear (stairStackable OFF)
-  if (!fieldCleared && rules.stair && !rules.stairStackable && isStair(cards) && prevField.length > 0) {
-    Object.assign(newGs, fieldClearEffect(pid, gs, rules)); fieldCleared = true;
-  }
-
-  // Shibari update (only if field not cleared)
-  if (!fieldCleared) {
-    newGs.shibari = computeShibari(prevField, cards, gs, rules);
-  }
-
-  // Determine sub-actions (7渡し, 10捨て, Qボンバー)
-  // 複数同時発動可能（例: 7-8-9-10の階段 → 7渡し→10捨て順番に処理）
-  // fieldCleared=trueでも発動（サブアクション先に解決 → 8切りpendingClear待ちへ）
-  const subPhaseList = [];
-
-  if (rules.sevenPass && nj.some(c => c.n === 7)) {
-    const count = nj.filter(c => c.n === 7).length + jokerBonus;
-    subPhaseList.push({ type:'sevenPass', pid, count, target: nextActivePid(pid, newGs), playedCards: cards });
-  }
-  if (rules.tenDiscard && nj.some(c => c.n === 10)) {
-    const count = nj.filter(c => c.n === 10).length + jokerBonus;
-    subPhaseList.push({ type:'tenDiscard', pid, count, playedCards: cards });
-  }
-  if (subPhaseList.length === 0 && rules.queenBomber && nj.length >= 1 && nj.every(c => c.n === 12)) {
-    const count = nj.length + jokerBonus;
-    subPhaseList.push({ type:'queenBomb', pid, count });
-  }
-  const subPhase = subPhaseList[0] || null;
-  const subPhaseQueue = subPhaseList.slice(1);
-
-  // 5スキップ（スキップ数をpassCountに加算して場流れ判定）
-  let skipCount = 0;
-  if (!fieldCleared && rules.fiveSkip && nj.some(c => c.n === 5)) {
-    skipCount = nj.filter(c => c.n === 5).length;
-    if (skipCount > 0) {
-      showToast(`5スキップ！×${skipCount}`);
-      newGs.passCount = (newGs.passCount || 0) + skipCount;
-      const actAfterSkip = (newGs.turnOrder || []).filter(p => isActive(p, newGs));
-      const thr = (newGs.fieldPid && isActive(newGs.fieldPid, newGs) && (newGs.field||[]).length > 0)
-        ? actAfterSkip.length - 1 : actAfterSkip.length;
-      if (newGs.passCount >= thr) {
-        const nx = newGs.fieldPid && isActive(newGs.fieldPid, newGs)
-          ? newGs.fieldPid : nextActivePid(newGs.fieldPid || pid, newGs);
-        Object.assign(newGs, fieldClearEffect(nx, newGs, rules));
-        fieldCleared = true; skipCount = 0;
-      }
-    }
-  }
-
-  // 9リバース（8切り等で場が流れる場合も発動）
-  if (rules.nineReverse && nj.some(c => c.n === 9)) {
-    newGs.direction *= -1;
-    showToast('9リバース！');
-  }
+  // ===== カード効果をメソッドパイプラインで適用 =====
+  // 各効果は「場に出たカードを見て、自分の条件に合致したら発動」する独立メソッド。
+  // if/elseの入れ子をやめ、EFFECT_PIPELINE の順に通すだけにした。
+  const fx = runEffectPipeline({ cards, pid, prevField, gs, newGs, rules });
+  const fieldCleared   = fx.fieldCleared;
+  const skipCount      = fx.skipCount;
+  // あがった（手札0枚）プレイヤーはサブアクション（7渡し/10捨て/Qボンバー）を実行できない
+  // → subPhaseを立てるとfinished者に手番が張り付いてデッドロックするため破棄
+  const wentOut        = isMe && newHand !== null && newHand.length === 0;
+  const subPhase       = wentOut ? null : (fx.subPhases[0] || null);
+  const subPhaseQueue  = wentOut ? []   : fx.subPhases.slice(1);
 
   // Determine next turn
   if (!subPhase) {
@@ -964,7 +1128,8 @@ async function doPass() {
 // ===== Play action =====
 window.doPlay = async function() {
   if (!gs || gs.turn !== MY_PID || !selected.length) return;
-  const cards = selected.map(i => myHand[i]);
+  const cards = selectedCards();
+  if (!cards.length) { selected = []; renderHand(); return; }
   if (!canPlay(cards, gs, rules)) { showToast('そのカードは出せません'); return; }
   selected = [];
   renderHand();
@@ -986,9 +1151,10 @@ function openSelectModal(type, count, hand) {
   const isPass = type === 'sevenPass';
   document.getElementById('selTitle').textContent = isPass ? '7渡し' : '10捨て';
   document.getElementById('selDesc').textContent = isPass
-    ? `手札から${count}枚まで選んで次のプレイヤーに渡す`
-    : `手札から${count}枚まで選んで捨てる`;
+    ? `手札から${count}枚まで選んで渡す（0枚=渡さないも可）`
+    : `手札から${count}枚まで選んで捨てる（0枚=捨てないも可）`;
   renderSelModalCards(count);
+  document.getElementById('selConfirm').disabled = false; // 0枚でも確定可
   document.getElementById('selectModal').style.display = 'block';
 }
 
@@ -1004,7 +1170,7 @@ function renderSelModalCards(maxCount) {
       if (idx >= 0) selModalSelected.splice(idx,1);
       else if (selModalSelected.length < maxCount) selModalSelected.push(i);
       renderSelModalCards(maxCount);
-      document.getElementById('selConfirm').disabled = selModalSelected.length === 0;
+      // 0枚でも確定可（渡さない/捨てない）
     };
     el.appendChild(div);
   });
@@ -1013,7 +1179,8 @@ function renderSelModalCards(maxCount) {
 window.confirmSelect = async function() {
   const sp = gs.subPhase;
   if (!sp) return;
-  const cards = selModalSelected.map(i => selModalCards[i]);
+  // undefined混入を防ぐ（auto-skip時やstale選択への保険）
+  const cards = selModalSelected.map(i => selModalCards[i]).filter(Boolean);
   document.getElementById('selectModal').style.display = 'none';
   try {
 
@@ -1022,12 +1189,17 @@ window.confirmSelect = async function() {
   delete newGs.subPhase;
 
   if (sp.type === 'sevenPass') {
-    // Give cards to target player
-    const targetHand = await getHand(sp.target);
-    const myNew = removeCards(myHand, cards);
-    updates[`rooms_daifugo/${ROOM}/hands/${MY_PID}`] = myNew;
-    updates[`rooms_daifugo/${ROOM}/hands/${sp.target}`] = [...targetHand, ...cards];
-    showToast(`${cards.length}枚渡した`);
+    // 渡す相手があがり/切断で非アクティブになっていたら次のアクティブへ振り直す
+    // （幽霊カードがあがり済みプレイヤーに渡るのを防ぐ）
+    let target = sp.target;
+    if (!isActive(target, newGs)) target = nextActivePid(sp.pid, newGs);
+    if (cards.length > 0 && isActive(target, newGs) && target !== MY_PID) {
+      const targetHand = await getHand(target);
+      const myNew = removeCards(myHand, cards);
+      updates[`rooms_daifugo/${ROOM}/hands/${MY_PID}`] = myNew;
+      updates[`rooms_daifugo/${ROOM}/hands/${target}`] = [...targetHand, ...cards];
+      showToast(`${cards.length}枚渡した`);
+    }
   } else {
     // Discard
     const myNew = removeCards(myHand, cards);
@@ -1065,8 +1237,9 @@ window.confirmSelect = async function() {
 // ===== Queen modal =====
 function openQueenModal(count) {
   queenSelected = [];
-  document.getElementById('queenDesc').textContent = `${count}種類の数字を選んで爆発させる`;
+  document.getElementById('queenDesc').textContent = `最大${count}種類まで選んで爆発（0種類＝爆発なしも可）`;
   renderQueenGrid(count);
+  document.getElementById('queenConfirm').disabled = false; // 少なく/無も可
   document.getElementById('queenModal').style.display = 'block';
 }
 
@@ -1083,7 +1256,7 @@ function renderQueenGrid(maxCount) {
       if (i >= 0) queenSelected.splice(i,1);
       else if (queenSelected.length < maxCount) queenSelected.push(n);
       renderQueenGrid(maxCount);
-      document.getElementById('queenConfirm').disabled = queenSelected.length < maxCount;
+      // 0〜maxCount種類まで確定可
     };
     grid.appendChild(btn);
   });
@@ -1101,19 +1274,28 @@ window.confirmQueen = async function() {
   // Remove selected numbers from ALL players' hands
   const updates = {};
   const pids = gs.turnOrder || [];
+  const wentOutPids = []; // 爆発で0枚になった人を検出
   for (const pid of pids) {
     const h = pid === MY_PID ? myHand : (await getHand(pid));
     const newH = h.filter(c => !queenSelected.includes(c.n));
     updates[`rooms_daifugo/${ROOM}/hands/${pid}`] = newH;
-    // Check if now empty
-    if (pid !== MY_PID && newH.length === 0 && h.length > 0) {
-      // We don't know their last played cards so can't check forbidden win
-      // For simplicity: auto-finish (no forbidden win check for others in this scenario)
-      if (!newGs.finished.includes(pid)) newGs.finished.push(pid);
-    }
+    if (newH.length === 0 && h.length > 0) wentOutPids.push(pid);
   }
-  if (myHand.filter(c => !queenSelected.includes(c.n)).length === 0 && myHand.length > 0) {
-    if (!newGs.finished.includes(MY_PID)) newGs.finished.push(MY_PID);
+
+  // 同時あがりの着順：発動者(MY_PID)を先頭、以降は発動者からターン順
+  // （発動者が損をして最下位になるのを防ぐ）
+  if (wentOutPids.length > 0) {
+    const ordered = [];
+    if (wentOutPids.includes(MY_PID)) ordered.push(MY_PID);
+    // 発動者の次から turnOrder を一巡して、0枚になった人を順に追加
+    let cur = MY_PID;
+    for (let i = 0; i < pids.length; i++) {
+      cur = nextActivePid(cur, { ...newGs, turnOrder: pids, finished: [], forbidden: {} });
+      if (wentOutPids.includes(cur) && !ordered.includes(cur)) ordered.push(cur);
+    }
+    // 取りこぼし防止
+    wentOutPids.forEach(p => { if (!ordered.includes(p)) ordered.push(p); });
+    ordered.forEach(p => { if (!newGs.finished.includes(p)) newGs.finished.push(p); });
   }
 
   showToast('💥 クイーンボンバー！');
@@ -1123,6 +1305,31 @@ window.confirmQueen = async function() {
   await update(ref(db), updates);
   } catch(e) {
     console.error('confirmQueen error:', e);
+    showToast('エラー: ' + e.message);
+  }
+};
+
+// ===== オーメン 革命選択 =====
+function openOmenModal() {
+  document.getElementById('omenModal').style.display = 'block';
+}
+window.confirmOmenRev = async function(doRevolution) {
+  const sp = gs.subPhase;
+  if (!sp || sp.type !== 'omenRev') return;
+  document.getElementById('omenModal').style.display = 'none';
+  try {
+    let newGs = JSON.parse(JSON.stringify(gs));
+    delete newGs.subPhase;
+    newGs.subPhaseQueue = null;
+    // 革命する/しないを選択 → 既存の革命状態を上書き
+    newGs.revolution = !!doRevolution;
+    showToast(doRevolution ? '🔄 革命！' : '革命しない');
+    // pendingClearは維持されたまま。次の手番へ（全員パスで場が流れる）
+    newGs.turn = nextActivePid(sp.pid, newGs);
+    if (shouldEndRound(newGs)) { await endRound(newGs); return; }
+    await set(ref(db, `rooms_daifugo/${ROOM}/game`), newGs);
+  } catch(e) {
+    console.error('confirmOmenRev error:', e);
     showToast('エラー: ' + e.message);
   }
 };
@@ -1137,35 +1344,31 @@ async function endRound(newGs) {
     }
   });
 
-  const rankMap = computeRankings(newGs);
   const n = newGs.turnOrder.length;
+  // 前回ラウンドの確定順位（このラウンド開始時点のrankings）
+  const prevRankings = [...(newGs.rankings || [])];
 
-  // Update scores
-  newGs.turnOrder.forEach(pid => {
-    const rIdx = rankMap[pid] ?? 0;
-    const rName = rankName(rIdx, n);
-    const pts = rankPoint(rName);
-    newGs.scores[pid] = (newGs.scores[pid] || 0) + pts;
-  });
+  let sortedPids;
+  if (newGs.phase === 'gekokujo' && rules.gekokujo && prevRankings.length >= 2) {
+    // 下剋上：その瞬間にラウンド終了し、「前回ラウンドの順位」を入れ替える。
+    // 大富豪↔大貧民・富豪↔貧民を入替え、その順位でポイント付与。
+    const r = [...prevRankings];
+    [r[0], r[r.length-1]] = [r[r.length-1], r[0]];
+    if (r.length >= 4) [r[1], r[r.length-2]] = [r[r.length-2], r[1]];
+    sortedPids = r;
+  } else {
+    // 通常：当ラウンドの順位（あがり順＝上位、失格＝下位）
+    const rankMap = computeRankings(newGs);
+    sortedPids = [...newGs.turnOrder].sort((a,b) => (rankMap[a]??0) - (rankMap[b]??0));
+  }
 
-  // Build rankings array (sorted by rank)
-  const sortedPids = [...newGs.turnOrder].sort((a,b) => (rankMap[a]??0) - (rankMap[b]??0));
   newGs.rankings = sortedPids;
 
-  // 下剋上 check: override rankings if triggered
-  if (newGs.phase === 'gekokujo' && rules.gekokujo) {
-    // Swap 大貧民↔大富豪, 貧民↔富豪
-    const prevRankings = gs.rankings || [];
-    if (prevRankings.length >= 2) {
-      const newRankings = [...prevRankings];
-      // Swap first and last
-      [newRankings[0], newRankings[newRankings.length-1]] = [newRankings[newRankings.length-1], newRankings[0]];
-      if (newRankings.length >= 4) {
-        [newRankings[1], newRankings[newRankings.length-2]] = [newRankings[newRankings.length-2], newRankings[1]];
-      }
-      newGs.rankings = newRankings;
-    }
-  }
+  // 順位インデックスでスコア加算（表示順位とスコアを一致させる）
+  sortedPids.forEach((pid, idx) => {
+    const rName = rankName(idx, n);
+    newGs.scores[pid] = (newGs.scores[pid] || 0) + rankPoint(rName);
+  });
 
   const isLastRound = newGs.round >= 5;
   newGs.phase = isLastRound ? 'game_end' : 'round_end';
@@ -1191,7 +1394,7 @@ function showRoundEnd(gsData) {
   sorted.forEach((pid,i) => {
     const rName = rankName(rankMap[pid] ?? i, n);
     const pts = rankPoint(rName);
-    const pName = players[pid]?.name || pid;
+    const pName = escapeHtml(players[pid]?.name || pid);
     const row = document.createElement('div');
     row.className = 're-row';
     row.innerHTML = `<div class="re-pos">${i+1}</div>
@@ -1210,8 +1413,16 @@ window.proceedNext = async function() {
   if (!isHost) return;
   const round = gs.round + 1;
 
-  // Deal new cards (keep all players from previous round)
-  const activePids = gs.turnOrder || [];
+  // 切断などで永続離脱したプレイヤーを除外（再配札/交換デッドロック防止）
+  const activePids = (gs.turnOrder || []).filter(p => !leftPlayers[p]);
+
+  // 残り1人以下ならゲーム終了扱い
+  if (activePids.length <= 1) {
+    const finalGs = { ...gs, turnOrder: activePids, phase: 'game_end' };
+    await set(ref(db, `rooms_daifugo/${ROOM}/game`), finalGs);
+    return;
+  }
+
   const deck = makeDeck();
   shuffleDeck(deck);
   const hands = dealCardsToPlayers(deck, activePids);
@@ -1225,7 +1436,9 @@ window.proceedNext = async function() {
   const updates = {};
   activePids.forEach(pid => { updates[`rooms_daifugo/${ROOM}/hands/${pid}`] = hands[pid]; });
 
-  const needExchange = rules.cardExchange !== 'off' && gs.rankings && gs.rankings.length >= 2;
+  // 離脱者を除いた前ラウンド順位（交換ペア決定用）
+  const prevRankingsFiltered = (gs.rankings || []).filter(p => !leftPlayers[p]);
+  const needExchange = rules.cardExchange !== 'off' && prevRankingsFiltered.length >= 2;
   const newGs = {
     ...gs,
     round,
@@ -1243,10 +1456,12 @@ window.proceedNext = async function() {
     disqualified: [],
     forbidden: {},
     pendingClear: false,
+    rankings: prevRankingsFiltered, // 離脱者を除いた前ラウンド順位（交換ペア決定用）
     phase: needExchange ? 'exchange' : 'playing',
     subPhase: null,
     subPhaseQueue: null,
     lastField: null,
+    tenpenchi_triggered: false, // 毎ラウンドのバナー誤表示を防ぐ
   };
   updates[`rooms_daifugo/${ROOM}/game`] = newGs;
   updates[`rooms_daifugo/${ROOM}/exchange_offers`] = null; // clear previous round's exchange data
@@ -1432,9 +1647,14 @@ function showExchangeSelectUpper(count, lowerPid, lowerOffer, gsData) {
 
 // Execute the actual card swap
 async function executeExchange(pair, lowerOffer, upperReturn, gsData) {
-  // Guard against double execution (simultaneous mode race condition)
-  const doneCheck = await get(ref(db, `rooms_daifugo/${ROOM}/exchange_done/${pair.upper}`));
-  if (doneCheck.exists()) return;
+  // 二重実行を atomically に防ぐ（同時交換モードのrace対策）
+  // exchange_done/{upper} を transaction で「まだ未処理(null)なら自分が処理中(2)に立てる」。
+  // 既に値があれば他が処理済み/処理中なのでcommitせず中断。
+  const claim = await runTransaction(
+    ref(db, `rooms_daifugo/${ROOM}/exchange_done/${pair.upper}`),
+    (cur) => (cur == null ? 'processing' : undefined) // undefined返却=中断
+  );
+  if (!claim.committed) return; // 既に他が確保済み
 
   const updates = {};
   // Lower: remove offered, receive upperReturn
@@ -1469,7 +1689,7 @@ async function executeExchange(pair, lowerOffer, upperReturn, gsData) {
     let newGs = JSON.parse(JSON.stringify(gsData));
     newGs.phase = 'playing';
 
-    if (rules.tenpenchi && daihinminHand.every(c => c.n <= 10) && n >= 2) {
+    if (rules.tenpenchi && daihinminHand.length > 0 && daihinminHand.every(c => c.n <= 10) && n >= 2) {
       const daifugoPid = rankings[0];
       const daifugoHand = daifugoPid === pair.upper ? upperNew
         : daifugoPid === pair.lower ? lowerNew
@@ -1487,6 +1707,9 @@ async function executeExchange(pair, lowerOffer, upperReturn, gsData) {
       newGs.tenpenchi_triggered = true;
     }
 
+    // exchange_done全体をnullにするので、個別キー(exchange_done/{upper})の指定は削除する
+    // （祖先パスと子パスを同一update()に含めるとFirebaseが例外を投げるため）
+    delete updates[`rooms_daifugo/${ROOM}/exchange_done/${pair.upper}`];
     updates[`rooms_daifugo/${ROOM}/game`] = newGs;
     updates[`rooms_daifugo/${ROOM}/exchange_done`] = null;
     updates[`rooms_daifugo/${ROOM}/exchange_offers`] = null;
@@ -1556,7 +1779,7 @@ function showGameResult(gsData) {
   list.innerHTML = '';
   sorted.forEach((pid,i) => {
     const sc = scores[pid] || 0;
-    const pName = players[pid]?.name || pid;
+    const pName = escapeHtml(players[pid]?.name || pid);
     const row = document.createElement('div');
     row.className = 'rs-row';
     row.innerHTML = `<div class="rs-rank">${i+1}</div>
@@ -1603,21 +1826,20 @@ function makeCardEl(card, small = false) {
 function renderHand() {
   const el = document.getElementById('selfHand');
   el.innerHTML = '';
-  const sorted = sortHand(myHand);
+  sortedHand = sortHand(myHand); // selection indices refer to THIS array
 
-  sorted.forEach((card, i) => {
-    const realIdx = myHand.findIndex(c => c.s === card.s && c.n === card.n);
+  sortedHand.forEach((card, i) => {
     const div = makeCardEl(card);
-    const isSelected = selected.includes(realIdx);
+    const isSelected = selected.includes(i);
     if (isSelected) div.classList.add('selected');
 
-    // Check playability (highlight unplayable)
+    // Check playability (highlight unplayable singles)
     if (gs && gs.turn === MY_PID && !gs.forbidden?.[MY_PID]) {
       const testPlay = canPlay([card], gs, rules);
       if (!testPlay && !isSelected) div.classList.add('unplayable');
     }
 
-    div.onclick = () => toggleCard(realIdx);
+    div.onclick = () => toggleCard(i);
     el.appendChild(div);
   });
 
@@ -1630,6 +1852,11 @@ function toggleCard(idx) {
   if (i >= 0) selected.splice(i,1);
   else selected.push(idx);
   renderHand();
+}
+
+// 選択中のカード実体を取得（sortedHandベース）
+function selectedCards() {
+  return selected.map(i => sortedHand[i]).filter(Boolean);
 }
 
 function updatePlayButton() {
@@ -1649,7 +1876,7 @@ function updatePlayButton() {
     btnPlay.disabled = true;
     return;
   }
-  const cards = selected.map(i => myHand[i]);
+  const cards = selectedCards();
   btnPlay.disabled = !canPlay(cards, gs, rules);
 }
 
@@ -1684,12 +1911,13 @@ function renderGame(gsData) {
 
   // Turn hint
   const hint = document.getElementById('turnHint');
-  if (gsData.turn === MY_PID && !gsData.forbidden?.[MY_PID]) {
+  const amSpectator = !isActive(MY_PID, gsData);
+  if (amSpectator) {
+    hint.textContent = '👁 観戦中 — 全員の手札が見えます';
+    hint.style.color = 'var(--gold)';
+  } else if (gsData.turn === MY_PID) {
     hint.textContent = '✦ あなたの番です';
     hint.style.color = 'var(--gold)';
-  } else if (gsData.forbidden?.[MY_PID]) {
-    hint.textContent = '失格 — 永遠パス';
-    hint.style.color = '#e07070';
   } else {
     hint.textContent = `${players[gsData.turn]?.name || '...'}の番`;
     hint.style.color = 'var(--muted)';
@@ -1740,30 +1968,48 @@ function renderOppZones(gsData) {
   const cont  = document.getElementById('oppZones');
   cont.innerHTML = '';
 
+  const rankMap = computeRankings(gsData);
+  const n = order.length;
+
+  // 自分があがり/都落ち等で非アクティブ → 観戦者として全員の手札を公開表示
+  const amSpectator = !isActive(MY_PID, gsData);
+
   others.forEach((pid, i) => {
     const zone   = zones[i] || 'pz-top';
-    const pName  = players[pid]?.name || pid;
+    const pName  = escapeHtml(players[pid]?.name || pid);
     const isTurn = gsData.turn === pid;
     const isDone = !isActive(pid, gsData);
     const isForbid = gsData.forbidden?.[pid];
-    const cardCount = 0; // We can't see their cards
+    const count  = handCounts[pid] || 0; // 残り手札枚数
 
     const div = document.createElement('div');
     div.className = `pzone ${zone}`;
 
-    const n = order.length;
-    const rankMap = computeRankings(gsData);
     const rIdx = rankMap[pid];
     const rName = rIdx !== undefined ? rankName(rIdx, n) : '';
+
+    // カード表示：観戦者は実カードを公開、それ以外は裏向き（5枚超は5枚固定）
+    let cardsHtml = '';
+    if (amSpectator) {
+      const hand = sortHand(allHands[pid] || []);
+      cardsHtml = '<div class="opp-cards">' +
+        hand.map(c => makeCardEl(c, true).outerHTML).join('') + '</div>';
+    } else {
+      const shownBacks = count > 5 ? 5 : count;
+      let backsHtml = '';
+      for (let k = 0; k < shownBacks; k++) backsHtml += '<div class="cback"></div>';
+      cardsHtml = `<div class="opp-cards">${backsHtml}</div>`;
+    }
 
     div.innerHTML = `
       <div class="pinfo ${isTurn?'is-turn':''} ${isDone?'done':''} ${isForbid?'forbidden':''}">
         <span class="pname">${pName}</span>
         ${rName ? `<span class="rbadge ${rankBadgeClass(rName)}">${rName}</span>` : ''}
+        ${(!isForbid) ? `<span class="pcount">残り${count}枚</span>` : ''}
       </div>
-      ${isForbid ? '<div class="passed-lbl">失格</div>' :
-        isDone   ? '<div class="passed-lbl">あがり</div>' :
-        gsData.passCount > 0 && gsData.turn !== pid && !isTurn ? '' : ''}
+      ${isForbid && !amSpectator ? '<div class="passed-lbl">失格</div>' :
+        isDone  && !amSpectator ? '<div class="passed-lbl">あがり</div>' :
+        cardsHtml}
     `;
     cont.appendChild(div);
   });
@@ -1823,11 +2069,84 @@ function dealCardsToPlayers(deck, pids) {
 }
 
 // ===== Toast =====
+// ===== チャット =====
+let chatOpen = false;
+let chatSeenCount = 0;
+const CHAT_PRESETS = ['よろしく！','ナイス！','強い…','まじか','パスで','ありがとう','どんまい','革命だ！'];
+
+function renderChatPresets() {
+  const el = document.getElementById('chatPresets');
+  if (!el || el.childElementCount) return;
+  CHAT_PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'chat-preset';
+    b.textContent = p;
+    b.onclick = () => sendChatText(p);
+    el.appendChild(b);
+  });
+}
+
+window.toggleChat = function() {
+  chatOpen = !chatOpen;
+  document.getElementById('chatPanel').classList.toggle('show', chatOpen);
+  if (chatOpen) {
+    renderChatPresets();
+    const msgs = document.getElementById('chatMsgs');
+    chatSeenCount = msgs.childElementCount;
+    document.getElementById('chatBadge').style.display = 'none';
+    msgs.scrollTop = msgs.scrollHeight;
+    setTimeout(() => document.getElementById('chatInput')?.focus(), 50);
+  }
+};
+
+async function sendChatText(text) {
+  const t = (text || '').trim();
+  if (!t) return;
+  await push(ref(db, `rooms_daifugo/${ROOM}/chat`), {
+    pid: MY_PID, name: MY_NAME || 'プレイヤー', text: t.slice(0, 60),
+  });
+}
+window.sendChat = async function() {
+  const input = document.getElementById('chatInput');
+  const t = input.value;
+  input.value = '';
+  await sendChatText(t);
+};
+
+function renderChat(all) {
+  const msgs = document.getElementById('chatMsgs');
+  const keys = Object.keys(all).sort(); // pushキーは辞書順=時系列順
+  msgs.innerHTML = '';
+  keys.forEach(k => {
+    const m = all[k];
+    const div = document.createElement('div');
+    div.className = 'chat-msg' + (m.pid === MY_PID ? ' mine' : '');
+    div.innerHTML = `<span class="cm-name">${escapeHtml(m.name || '')}</span>${escapeHtml(m.text || '')}`;
+    msgs.appendChild(div);
+  });
+  msgs.scrollTop = msgs.scrollHeight;
+  // 未読バッジ
+  const total = keys.length;
+  if (chatOpen) {
+    chatSeenCount = total;
+  } else {
+    const unread = total - chatSeenCount;
+    const badge = document.getElementById('chatBadge');
+    if (unread > 0) { badge.textContent = unread > 99 ? '99+' : unread; badge.style.display = 'flex'; }
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+let _toastTimer = null;
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2200);
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 3000); // 3秒表示
 }
 
 // ===== Firebase listeners =====
@@ -1836,6 +2155,13 @@ function startListeners() {
   onValue(ref(db, `rooms_daifugo/${ROOM}/game`), snap => {
     if (!snap.exists()) return;
     gs = snap.val();
+    // Firebaseは空配列/空オブジェクトをキーごと削除するため、必ず初期化しておく
+    // （これを怠ると初回あがり時の finished.push などで TypeError → サイレント失敗）
+    gs.finished     = gs.finished     || [];
+    gs.disqualified = gs.disqualified || [];
+    gs.forbidden    = gs.forbidden    || {};
+    gs.scores       = gs.scores       || {};
+    gs.turnOrder    = gs.turnOrder    || [];
 
     // Parse phase
     if (gs.phase === 'round_end') {
@@ -1874,18 +2200,25 @@ function startListeners() {
       const sp = gs.subPhase;
       const selOpen   = document.getElementById('selectModal').style.display === 'block';
       const queenOpen = document.getElementById('queenModal').style.display === 'block';
-      if (!selOpen && !queenOpen) {
+      const omenOpen  = document.getElementById('omenModal').style.display === 'block';
+      if (!selOpen && !queenOpen && !omenOpen) {
         if (sp.type === 'sevenPass' || sp.type === 'tenDiscard') {
           const played = sp.playedCards || [];
-          const availHand = myHand.filter(c => !played.some(x => x.s === c.s && x.n === c.n));
+          // 出したカードを「枚数分だけ」除外（値で全消しせず重複を正しく扱う）
+          // ※ hands未同期でmyHandにまだ出したカードが残っている場合の保険
+          const availHand = removeCards(myHand, played);
           if (availHand.length === 0) {
-            // 渡す/捨てるカードがない場合はスキップ
+            // 渡す/捨てるカードがない場合はスキップ（stale選択をリセットしてから）
+            selModalCards = [];
+            selModalSelected = [];
             window.confirmSelect();
           } else {
             openSelectModal(sp.type, sp.count, availHand);
           }
         } else if (sp.type === 'queenBomb') {
           openQueenModal(sp.count);
+        } else if (sp.type === 'omenRev') {
+          openOmenModal();
         }
       }
     }
@@ -1898,6 +2231,15 @@ function startListeners() {
     myHand = snap.val() || [];
     selected = []; // clear selection when hand changes to prevent stale indices → TypeError
     if (gs) renderHand();
+  });
+
+  // 全員の手札を取得。通常は「枚数」だけUI表示（裏向き）。
+  // ただし自分があがり/都落ち等で非アクティブになったら観戦者として実カードを表示する。
+  onValue(ref(db, `rooms_daifugo/${ROOM}/hands`), snap => {
+    allHands = snap.val() || {};
+    handCounts = {};
+    for (const pid in allHands) handCounts[pid] = (allHands[pid] || []).length;
+    if (gs) renderOppZones(gs);
   });
 
   // Players
@@ -1921,6 +2263,15 @@ function startListeners() {
       showToast(`${players[pid]?.name || pid} が切断しました`);
       const updates = {};
       updates[`rooms_daifugo/${ROOM}/disconnected/${pid}`] = null;
+      // 永続的な離脱記録 → 次ラウンド以降この人を除外（再配札/交換デッドロック防止）
+      updates[`rooms_daifugo/${ROOM}/left/${pid}`] = true;
+      // 切断者がサブアクション（7渡し/10捨て/Qボンバー）のモーダル待ちだった場合、
+      // subPhaseを破棄しないと誰も解決できずゲームが停止する
+      if (newGs.subPhase && newGs.subPhase.pid === pid) {
+        newGs.subPhase = null;
+        newGs.subPhaseQueue = null;
+        if (newGs.turn === pid) newGs.turn = nextActivePid(pid, newGs);
+      }
       if (shouldEndRound(newGs)) {
         await endRound(newGs);
       } else {
@@ -1929,6 +2280,16 @@ function startListeners() {
         await update(ref(db), updates);
       }
     }
+  });
+
+  // 永続離脱プレイヤー listener
+  onValue(ref(db, `rooms_daifugo/${ROOM}/left`), snap => {
+    leftPlayers = snap.val() || {};
+  });
+
+  // チャット listener
+  onValue(ref(db, `rooms_daifugo/${ROOM}/chat`), snap => {
+    renderChat(snap.val() || {});
   });
 
   // Exchange offers listener — refresh exchange screen when offers change
@@ -1949,12 +2310,23 @@ function startListeners() {
     const prevDaifugo = getPrevDaifugo(gs);
     if (!prevDaifugo || prevDaifugo === firstPid) return;
     if (!isActive(prevDaifugo, gs)) return;
-    // Retire prev daifugo
-    let newGs = JSON.parse(JSON.stringify(gs));
-    retirePlayer(prevDaifugo, newGs);
     showToast(`${players[prevDaifugo]?.name || prevDaifugo} 都落ち！`);
-    if (shouldEndRound(newGs)) { await endRound(newGs); return; }
-    await set(ref(db, `rooms_daifugo/${ROOM}/game`), newGs);
+
+    // game全体を transaction で更新（他プレイヤーの同時手番更新を巻き戻さない）
+    let endTriggered = null;
+    await runTransaction(ref(db, `rooms_daifugo/${ROOM}/game`), (cur) => {
+      if (!cur) return cur;
+      cur.finished     = cur.finished     || [];
+      cur.disqualified = cur.disqualified || [];
+      cur.forbidden    = cur.forbidden    || {};
+      // 既に処理済み/対象が非アクティブなら何もしない（冪等）
+      if (cur.disqualified.includes(prevDaifugo) || cur.forbidden[prevDaifugo]) return; // abort
+      retirePlayer(prevDaifugo, cur);
+      return cur;
+    });
+    // transaction後の状態でラウンド終了判定（必要ならendRound）
+    const after = (await get(ref(db, `rooms_daifugo/${ROOM}/game`))).val();
+    if (after && shouldEndRound(after)) { await endRound(after); }
   });
 }
 

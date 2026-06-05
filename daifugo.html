@@ -382,7 +382,30 @@ window.openRuleSettings = function() {
 };
 window.closeRuleSettings = function() {
   document.getElementById('ruleOverlay').classList.remove('show');
+  // 常にメインパネルに戻しておく（次回開いたときサブパネルのまま残らないように）
+  document.getElementById('ruleSubPanel').style.display  = 'none';
+  document.getElementById('ruleMainPanel').style.display = 'block';
 };
+
+// Esc/背景クリックの共通処理：サブパネル表示中は「メインへ戻る」、メインなら閉じる
+function dismissRuleOverlay() {
+  const subVisible = document.getElementById('ruleSubPanel').style.display === 'block';
+  if (subVisible) {
+    window.backToRuleMain(); // サブ→メイン（戻るボタンと同じ）
+  } else {
+    window.closeRuleSettings();
+  }
+}
+// 背景（暗い部分）タップ
+document.getElementById('ruleOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'ruleOverlay') dismissRuleOverlay();
+});
+// Escキー
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('ruleOverlay').classList.contains('show')) {
+    dismissRuleOverlay();
+  }
+});
 
 // ===== ルールID =====
 window.getRuleId = function() {
@@ -506,10 +529,10 @@ function startRoomListener() {
 
     const hostPid = room.host || pids.find(p => players[p]?.index === 0);
     isHost = hostPid === MY_PID;
-    const canStart = pids.length >= 2;
+    const canStart = pids.length >= 3;
 
     document.getElementById('waitingStatus').textContent =
-      canStart ? `${pids.length} 人が参加中` : `${pids.length} 人参加中 — あと${2 - pids.length}人待ち`;
+      canStart ? `${pids.length} 人が参加中` : `${pids.length} 人参加中 — あと${Math.max(0, 3 - pids.length)}人待ち`;
     document.getElementById('startBtn').style.display       = (isHost && canStart) ? 'block' : 'none';
     document.getElementById('waitingForHost').style.display = !isHost ? 'block' : 'none';
     document.getElementById('ruleSettingsBtn').textContent  = isHost ? '⚙️ ルール設定' : '👁 ルールを見る';
@@ -538,7 +561,7 @@ window.hostStartGame = async function() {
   if (!snap.exists()) return;
   const room = snap.val();
   const pids = Object.keys(room.players || {});
-  if (pids.length < 2) { showToast('2人以上必要です'); return; }
+  if (pids.length < 3) { showToast('3人以上必要です'); return; }
 
   // カードを配る
   const deck = shuffle(makeDeck());

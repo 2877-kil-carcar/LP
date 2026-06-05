@@ -1217,9 +1217,174 @@
   }
   /* バナー分だけheroを下げる */
   .hero { padding-top: 100px; }
+
+  /* ══════════════════════════════════════════
+     ✦ SCROLL-DRIVEN BACKGROUND + CINEMATIC HERO
+     ══════════════════════════════════════════ */
+
+  /* スクロールで色が変わる固定背景レイヤー（JSがgradientを更新） */
+  #scrollBg {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    background:
+      radial-gradient(ellipse at 50% 20%, rgba(196,30,58,0.28) 0%, transparent 55%),
+      linear-gradient(180deg, #210B12 0%, #0D0406 100%);
+    will-change: background;
+  }
+  /* 微細な粒子ノイズ（質感） */
+  #scrollBg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(212,175,55,0.04) 1px, transparent 1px);
+    background-size: 3px 3px;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+  body { background: transparent; }
+
+  /* ── Apple風：縦長ステージ＋動画ピン留め ── */
+  .hero-stage {
+    position: relative;
+    height: 200vh;          /* この高さ分スクロールする間、動画が固定されて進む */
+    z-index: 1;
+  }
+  .hero.hero-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── シネマティック・ヒーロー（動画を全面背景に） ── */
+  .hero {
+    min-height: 100vh;
+    background: transparent;
+  }
+  .hero-bg-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 0;
+    pointer-events: none;
+    /* スクロールで顔（上中央）に向かってズームイン＋ゆるくフェード */
+    transform-origin: 50% 40%;
+    transform: scale(calc(1 + var(--heroProgress, 0) * 0.95));
+    opacity: calc(1 - var(--heroProgress, 0) * 0.55);
+    transition: transform 0.1s linear, opacity 0.1s linear;
+  }
+  .hero-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 38%, rgba(74,16,32,0.45) 0%, rgba(33,11,18,0.78) 52%, rgba(13,4,6,0.96) 100%),
+      linear-gradient(180deg, rgba(13,4,6,0.55) 0%, transparent 22%, transparent 60%, rgba(13,4,6,0.92) 100%);
+  }
+  .hero > .hero-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    /* スクロールでブロック全体がフェード（タイトルは更に拡大） */
+    opacity: calc(1 - var(--titleProgress, 0) * 1.05);
+    will-change: opacity;
+  }
+  /* 動画の上に乗る見出し ─ スクロールで手前に拡大して貫通 */
+  .hero .hero-content h1 {
+    font-size: clamp(48px, 13vw, 104px);
+    letter-spacing: 2px;
+    text-shadow: 0 4px 40px rgba(0,0,0,0.7), 0 0 36px rgba(212,175,55,0.35);
+    transform-origin: 50% 46%;
+    transform: scale(calc(1 + var(--titleProgress, 0) * 8));
+    opacity: calc(1 - var(--titleProgress, 0) * 1.2);
+    /* fadeUp(transform)は競合するので外し、発光のみ継続 */
+    animation: title-glow 3s ease-in-out infinite 1s;
+    will-change: transform, opacity;
+  }
+  /* スクロール開始でSCROLLヒントは早めに消す */
+  .hero .scroll-hint {
+    opacity: calc(1 - var(--titleProgress, 0) * 4);
+    animation: none;
+  }
+  .hero .hero-content .hero-sub {
+    color: rgba(240,224,192,0.9);
+    text-shadow: 0 2px 16px rgba(0,0,0,0.8);
+  }
+  /* 装飾ブロブは控えめに（動画優先） */
+  .hero::before, .hero::after { opacity: 0.5; }
+
+  /* ── ヒーロー後：奥からぼんやり浮かび上がってヒーローに被さるパネル ── */
+  .rise-panel {
+    position: relative;
+    z-index: 5;                 /* sticky動画(z-index低)の上に被さる */
+    margin-top: -16vh;          /* ステージ末尾に少し食い込み、動画の上へ浮上 */
+    border-radius: 32px 32px 0 0;
+    background:
+      linear-gradient(180deg, #1A0A0E 0%, rgba(26,10,14,0.9) 10%, transparent 34%);
+    box-shadow: 0 -28px 60px rgba(0,0,0,0.55), 0 -1px 0 rgba(212,175,55,0.25);
+    /* スクロール量(--riseProgress)に連動：ぼんやり(blur)→ピント＋ふわっと上昇
+       ※既定値は 1（=見える）。JSが動かなくてもギャラリーが隠れないようにする。 */
+    opacity: var(--riseProgress, 1);
+    transform: translateY(calc((1 - var(--riseProgress, 1)) * 50px));
+    filter: blur(calc((1 - var(--riseProgress, 1)) * 10px));
+    will-change: opacity, transform, filter;
+  }
+  /* パネル上端の取っ手風ライン */
+  .rise-panel::before {
+    content: '';
+    position: absolute;
+    top: 12px; left: 50%;
+    width: 54px; height: 4px;
+    transform: translateX(-50%);
+    border-radius: 999px;
+    background: rgba(212,175,55,0.45);
+    box-shadow: 0 0 14px rgba(212,175,55,0.4);
+  }
+
+  /* ── ギャラリー：カードが1枚ずつ立ち上がる（Apple風スタッガー） ── */
+  .gallery-card {
+    opacity: 0;
+    transform: translateY(54px) scale(0.92);
+    transition:
+      opacity 0.7s cubic-bezier(.16,.84,.44,1),
+      transform 0.7s cubic-bezier(.16,.84,.44,1);
+    will-change: transform, opacity;
+  }
+  .gallery-card.in {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-bg-video { transform: none; opacity: 1; }
+    #scrollBg { transition: none; }
+    .rise-panel { transition: none; opacity: 1; transform: none; }
+    .gallery-card { transition: none; opacity: 1; transform: none; }
+  }
 </style>
 </head>
 <body>
+
+<!-- 読み込み時は必ずページ最上部から開始（スクロール復元/#ハッシュのジャンプを無効化） -->
+<script>
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  // #gallery 等のハッシュが付いていてもトップ表示にする
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  window.scrollTo(0, 0);
+  window.addEventListener('load', () => window.scrollTo(0, 0));
+  window.addEventListener('pageshow', () => window.scrollTo(0, 0));
+</script>
+
+<!-- スクロール連動の背景レイヤー -->
+<div id="scrollBg"></div>
 
 <!-- ミニゲームバナー -->
 <div class="game-banner">
@@ -1229,26 +1394,32 @@
   <a href="daifugo.html" class="game-banner-btn" style="background:linear-gradient(135deg,#0d0d1a,#1a0a2e);border-color:rgba(212,175,55,0.45);box-shadow:0 4px 20px rgba(212,175,55,0.35);">🎴 大富豪</a>
 </div>
 
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-badge">✦ THE FLUFFY HALL ✦</div>
+<!-- HERO（縦長ステージ：この区間スクロール中、動画が固定されて進む） -->
+<section class="hero-stage" id="heroStage">
+  <div class="hero hero-sticky">
+    <!-- 全面背景動画（スクロール量に合わせてコマ送り＝scrub） -->
+    <video class="hero-bg-video" id="heroVideo" src="v2_watermarked-7b3b69ad-1084-4ca4-b7a6-06d7e5d2edec.mp4" muted playsinline preload="auto"></video>
+    <div class="hero-overlay"></div>
 
-  <div class="hero-video-wrap">
-    <video src="mp_.mp4" autoplay muted loop playsinline></video>
+    <div class="hero-content">
+      <div class="hero-badge">✦ THE FLUFFY HALL ✦</div>
+      <h1>もふもふの<span>殿堂</span></h1>
+      <p class="hero-sub">世界一かわいいもふもふたちを<br>厳選収蔵した、至高のギャラリーへようこそ🖼️</p>
+      <a href="#gallery" class="hero-cta">コレクションを見る →</a>
+    </div>
+
+    <div class="scroll-hint">SCROLL</div>
   </div>
-
-  <h1>もふもふの<span>殿堂</span></h1>
-  <p class="hero-sub">世界一かわいいもふもふたちを<br>厳選収蔵した、至高のギャラリーへようこそ🖼️</p>
-  <a href="#gallery" class="hero-cta">コレクションを見る →</a>
-
-  <div class="scroll-hint">SCROLL</div>
 </section>
+
+<!-- ヒーロー後にせり上がってくるパネル -->
+<div class="rise-panel" id="risePanel">
 
 <!-- WOOD STRIP -->
 <div class="wood-strip"></div>
 
 <!-- GALLERY (DYNAMIC) -->
-<section class="gallery-section reveal" id="gallery">
+<section class="gallery-section" id="gallery">
 
   <div class="gallery-header">
     <div class="gallery-header-left">
@@ -1273,6 +1444,8 @@
   </div>
 
 </section>
+
+</div><!-- /.rise-panel -->
 
 <!-- アップロードモーダル -->
 <div class="upload-modal" id="uploadModal">
@@ -1370,6 +1543,109 @@ const revealObs = new IntersectionObserver((entries) => {
 }, { threshold: 0.12 });
 reveals.forEach(el => revealObs.observe(el));
 
+// ギャラリーカードのスタッガー出現（各カードが時間差で立ち上がる）
+const cardObs = new IntersectionObserver((entries, obs) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); obs.unobserve(e.target); }
+  });
+}, { threshold: 0.08, rootMargin: '0px 0px -8% 0px' });
+
+// ヒーロー後パネルの「ぼんやり浮上」はスクロール連動（update内で--riseProgressを更新）
+const risePanel = document.getElementById('risePanel');
+
+/* ============================================================
+   スクロール連動の背景グラデーション（黒×赤）＋ヒーロー演出
+   ============================================================ */
+(function(){
+  const bgEl    = document.getElementById('scrollBg');
+  const heroEl  = document.querySelector('.hero');
+  const videoEl = document.getElementById('heroVideo');
+
+  // 動画はスクロール量に合わせてコマ送り（scrub）。自動では動かさない。
+  let videoDur = 0;
+  let seeking = false; // seek多重発行で固まるのを防ぐ
+  if (videoEl) {
+    videoEl.pause();
+    videoEl.addEventListener('loadedmetadata', () => {
+      videoDur = isFinite(videoEl.duration) ? videoEl.duration : 0;
+      update();
+    });
+    videoEl.addEventListener('seeked', () => { seeking = false; });
+  }
+  // 上→下のカラーパレット（base=地色, glow=発光色）。黒×赤×ゴールドで統一。
+  const STOPS = [
+    { p: 0.0, base: [33, 11, 18],  glow: [196, 30, 58]  }, // 深いワイン×クリムゾン
+    { p: 0.5, base: [40, 8, 12],   glow: [212, 175, 55] }, // 黒寄り×ゴールド
+    { p: 1.0, base: [13, 6, 8],    glow: [139, 0, 0]    }, // ほぼ黒×ダークレッド
+  ];
+  const lerp  = (a, b, t) => a + (b - a) * t;
+  const lerpC = (a, b, t) => [Math.round(lerp(a[0],b[0],t)), Math.round(lerp(a[1],b[1],t)), Math.round(lerp(a[2],b[2],t))];
+  function sample(p) {
+    p = Math.max(0, Math.min(1, p));
+    for (let i = 1; i < STOPS.length; i++) {
+      if (p <= STOPS[i].p) {
+        const a = STOPS[i-1], b = STOPS[i];
+        const t = (p - a.p) / (b.p - a.p || 1);
+        return { base: lerpC(a.base, b.base, t), glow: lerpC(a.glow, b.glow, t) };
+      }
+    }
+    return { base: STOPS[STOPS.length-1].base, glow: STOPS[STOPS.length-1].glow };
+  }
+  let ticking = false;
+  function update() {
+    ticking = false;
+    const max  = document.documentElement.scrollHeight - window.innerHeight;
+    const prog = max > 0 ? window.scrollY / max : 0;
+    const { base, glow } = sample(prog);
+    const gx = 50 + Math.sin(prog * Math.PI) * 18;  // 発光がゆるく横移動
+    const gy = 18 + prog * 64;                       // 下へ移動
+    bgEl.style.background =
+      `radial-gradient(ellipse at ${gx}% ${gy}%, rgba(${glow[0]},${glow[1]},${glow[2]},0.30) 0%, transparent 56%),` +
+      `linear-gradient(180deg, rgb(${base[0]},${base[1]},${base[2]}) 0%, #0D0406 100%)`;
+    // 縦長ステージ内のスクロール進捗0→1（sticky中ずっと動画が固定されて進む）
+    const stage = document.getElementById('heroStage');
+    let hp = 0;
+    if (stage) {
+      const range = stage.offsetHeight - window.innerHeight;
+      hp = range > 0 ? Math.max(0, Math.min(1, (window.scrollY - stage.offsetTop) / range)) : 0;
+    }
+    if (heroEl) {
+      heroEl.style.setProperty('--heroProgress', hp.toFixed(3));
+      // タイトルはステージ前半(〜40%)で素早く拡大しきって貫通 → 奥からギャラリーが出る
+      const tp = Math.min(1, hp / 0.4);
+      heroEl.style.setProperty('--titleProgress', tp.toFixed(3));
+    }
+
+    // ギャラリーは「パネル自身の画面内位置」を基準に、奥からぼんやり浮かび上がる
+    // （hp依存だと到達条件がズレて出ないことがあるため、確実に1へ到達する位置基準に）
+    if (risePanel) {
+      const vh = window.innerHeight;
+      const top = risePanel.getBoundingClientRect().top;
+      // パネル上端が画面下(vh)から上15%付近まで上がる間に 0→1
+      let rp = (vh - top) / (vh * 0.85);
+      rp = Math.max(0, Math.min(1, rp));
+      risePanel.style.setProperty('--riseProgress', rp.toFixed(3));
+      risePanel.classList.toggle('rise-on', rp > 0.02);
+    }
+
+    // 動画をスクロール量に合わせてコマ送り（止めれば止まる）
+    // 直前のseekが終わるまで次のseekを出さない＝引っかかり(途中停止)を低減
+    if (videoEl && videoDur > 0 && !seeking) {
+      const t = hp * videoDur;
+      if (Math.abs(videoEl.currentTime - t) > 0.05) {
+        seeking = true;
+        try { videoEl.currentTime = t; } catch (e) { seeking = false; }
+      }
+    }
+  }
+  function onScroll() {
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+})();
+
 /* ============================================================
    Firebase 初期化
    ============================================================ */
@@ -1459,7 +1735,16 @@ function renderGallery() {
     card.appendChild(frame);
     card.appendChild(plate);
     galleryGrid.appendChild(card);
+
+    // 横位置(列)で時間差をつけて左→右の波のように立ち上げる
+    card.style.transitionDelay = `${(i % 3) * 90}ms`;
+    cardObs.observe(card);
   });
+
+  // 安全策：万一オブザーバーが発火しなくても、少し後に必ず表示する
+  setTimeout(() => {
+    galleryGrid.querySelectorAll('.gallery-card:not(.in)').forEach(c => c.classList.add('in'));
+  }, 1800);
 }
 
 /* ============================================================
