@@ -1370,6 +1370,14 @@
     .rise-panel { transition: none; opacity: 1; transform: none; }
     .gallery-card { transition: none; opacity: 1; transform: none; }
   }
+
+  /* スマホ：固定バナー(ミニゲームボタン)に隠れないよう、アニメをバナー下から開始 */
+  @media (max-width: 700px) {
+    .hero-bg-video {
+      top: var(--bannerH, 70px);
+      height: calc(100% - var(--bannerH, 70px));
+    }
+  }
 </style>
 </head>
 <body>
@@ -1560,6 +1568,13 @@ const risePanel = document.getElementById('risePanel');
 (function(){
   const bgEl   = document.getElementById('scrollBg');
   const heroEl = document.querySelector('.hero');
+  const bannerEl = document.querySelector('.game-banner');
+
+  // 固定バナーの実高さを測り、スマホでアニメをその分下げる（折り返しで高さが変わるため動的に）
+  function setBannerVar() {
+    if (bannerEl) document.documentElement.style.setProperty('--bannerH', bannerEl.offsetHeight + 'px');
+  }
+  setBannerVar();
 
   /* ── 連番画像をcanvasに描画してスクロールでコマ送り（PC/スマホ共通） ── */
   const canvas = document.getElementById('heroCanvas');
@@ -1664,8 +1679,9 @@ const risePanel = document.getElementById('risePanel');
     if (!ticking) { ticking = true; requestAnimationFrame(update); }
   }
   window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', () => { resizeCanvas(); update(); });
-  window.addEventListener('load', () => { resizeCanvas(); update(); });
+  window.addEventListener('resize', () => { setBannerVar(); resizeCanvas(); update(); });
+  window.addEventListener('load',   () => { setBannerVar(); resizeCanvas(); update(); });
+  setBannerVar();
   resizeCanvas();
   update();
 })();
