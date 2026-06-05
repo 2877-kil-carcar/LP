@@ -92,11 +92,21 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
 /* 手札：横スクロールせず折り返して複数段表示（最大3人=最大18枚程度） */
 .hand-grid{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:center;gap:3px;width:100%;max-width:100vw;padding:2px 4px;max-height:46vh;overflow-y:auto}
 /* 手札カードは小型化、ただしスート・数字は大きく見せる */
-.hand-grid .card{width:42px;height:60px}
-.hand-grid .card .cnum{font-size:17px}
-.hand-grid .card .csut{font-size:14px}
-.hand-grid .card .cmid{font-size:30px}
-.hand-grid .card.joker .cmid{font-size:17px}
+.hand-grid .card{width:46px;height:64px}
+/* 小型カードは隅マーク＋中央ピップが重なって見づらいので、
+   中央に「数字＋スート」だけを大きく表示するシンプルな面にする */
+.hand-grid .card .cbr{display:none}                 /* 右下の隅マークは消す */
+.hand-grid .card:not(.joker) .cmid{display:none}    /* 重なる中央の大ピップを消す */
+.hand-grid .card:not(.joker) .ctl{
+  position:absolute; inset:0; left:0; top:0;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:1px; line-height:1;
+}
+.hand-grid .card:not(.joker) .ctl .cnum{font-size:23px}
+.hand-grid .card:not(.joker) .ctl .csut{font-size:20px}
+/* ジョーカーは中央の★表記を活かす */
+.hand-grid .card.joker .ctl{display:none}
+.hand-grid .card.joker .cmid{font-size:15px}
 .hand-grid .card.selected{transform:translateY(-10px)}
 /* fan for large hands */
 .hand-fan{position:relative;height:90px;width:100%;overflow:hidden}
@@ -291,6 +301,9 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
     <div class="modal-box">
       <div class="modal-title">クイーンボンバー</div>
       <div class="modal-desc" id="queenDesc"></div>
+      <div class="modal-desc" style="margin-bottom:4px">あなたの手札</div>
+      <div class="modal-cards" id="queenHand"></div>
+      <div class="modal-desc" style="margin-bottom:4px">爆発させる数字を選ぶ</div>
       <div class="num-grid" id="numGrid"></div>
       <div class="modal-footer">
         <button class="btn-confirm" id="queenConfirm" onclick="confirmQueen()" disabled>爆発！</button>
@@ -299,15 +312,15 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
   </div>
 </div>
 
-<!-- オーメン 革命選択モーダル -->
+<!-- 革命選択モーダル（オーメン／通常の革命 共通） -->
 <div id="omenModal" style="display:none">
   <div class="modal-bg">
     <div class="modal-box">
-      <div class="modal-title">オーメン！</div>
-      <div class="modal-desc">革命効果を発動しますか？（場は全員パス後に流れます）</div>
+      <div class="modal-title" id="revModalTitle">革命</div>
+      <div class="modal-desc" id="revModalDesc">革命を発動しますか？</div>
       <div class="modal-footer">
-        <button class="btn-confirm" onclick="confirmOmenRev(true)">革命する</button>
-        <button class="btn-pass" onclick="confirmOmenRev(false)">しない</button>
+        <button class="btn-confirm" onclick="confirmRevChoice(true)">革命する</button>
+        <button class="btn-pass" onclick="confirmRevChoice(false)">しない</button>
       </div>
     </div>
   </div>
@@ -796,25 +809,34 @@ function rankPoint(name) {
 //         newGs(変更対象), rules, fieldCleared, skipCount, subPhases[] }
 // ====================================================================
 
-// 革命（4枚同数 / 7×3 ナナサン革命 等：checkRevolutionが判定）
+// 革命（4枚同数 / 7×3 ナナサン革命 / 9×3 / エンペラー / 階段革命：checkRevolutionが判定）
+// 設定「革命するかどうか選択(revolutionOptional)」がONなら、発動者が選択（revChoice subPhase）
 function fxRevolution(ctx) {
   if (checkRevolution(ctx.cards, ctx.gs, ctx.rules)) {
-    ctx.newGs.revolution = !ctx.newGs.revolution;
-    showToast('🔄 革命！');
+    if (ctx.rules.revolutionOptional) {
+      ctx.subPhases.push({ type:'revChoice', pid: ctx.pid });
+    } else {
+      ctx.newGs.revolution = !ctx.newGs.revolution;
+      showToast('🔄 革命！');
+    }
   }
 }
 
 // オーメン（6×3）：場が流れ（全員パス後）、以降すべての効果が無効になる。
-// 革命効果を持つため、革命ルールONなら発動者が「革命する/しない」を選べる（omenRev subPhase）。
+// 革命効果を持つため、革命ルールON時：革命選択ONなら選択、OFFなら自動で反転。
 function fxOmen(ctx) {
   if (checkOmen(ctx.cards, ctx.gs, ctx.rules)) {
     ctx.newGs.omen = true;
     // 場流れ（他の場流れ系と統一：全員パス後に流れる）
     setPendingClear(ctx.pid, ctx.newGs);
     ctx.fieldCleared = true;
-    // 革命効果：革命ルールONなら発動者が選択（モーダル）。既存の革命状態は選択結果で上書き。
+    // 革命効果
     if (ctx.rules.revolution) {
-      ctx.subPhases.push({ type:'omenRev', pid: ctx.pid });
+      if (ctx.rules.revolutionOptional) {
+        ctx.subPhases.push({ type:'omenRev', pid: ctx.pid });
+      } else {
+        ctx.newGs.revolution = !ctx.newGs.revolution;
+      }
     }
     showToast('オーメン！ 場が流れます（以降すべての効果が無効）');
   }
@@ -1238,9 +1260,22 @@ window.confirmSelect = async function() {
 function openQueenModal(count) {
   queenSelected = [];
   document.getElementById('queenDesc').textContent = `最大${count}種類まで選んで爆発（0種類＝爆発なしも可）`;
+  renderQueenHand();
   renderQueenGrid(count);
   document.getElementById('queenConfirm').disabled = false; // 少なく/無も可
   document.getElementById('queenModal').style.display = 'block';
+}
+
+// Qボンバー選択画面に自分の手札を表示（クリック不可・確認用）
+function renderQueenHand() {
+  const el = document.getElementById('queenHand');
+  if (!el) return;
+  el.innerHTML = '';
+  sortHand(myHand).forEach(c => {
+    const d = makeCardEl(c, true); // 小サイズ
+    d.style.pointerEvents = 'none';
+    el.appendChild(d);
+  });
 }
 
 function renderQueenGrid(maxCount) {
@@ -1309,27 +1344,40 @@ window.confirmQueen = async function() {
   }
 };
 
-// ===== オーメン 革命選択 =====
-function openOmenModal() {
+// ===== 革命選択（オーメン／通常革命 共通） =====
+function openRevChoiceModal(type) {
+  const isOmen = type === 'omenRev';
+  document.getElementById('revModalTitle').textContent = isOmen ? 'オーメン！' : '革命';
+  document.getElementById('revModalDesc').textContent  = isOmen
+    ? '革命効果を発動しますか？（場は全員パス後に流れます）'
+    : '革命を発動しますか？';
   document.getElementById('omenModal').style.display = 'block';
 }
-window.confirmOmenRev = async function(doRevolution) {
+window.confirmRevChoice = async function(doRevolution) {
   const sp = gs.subPhase;
-  if (!sp || sp.type !== 'omenRev') return;
+  if (!sp || (sp.type !== 'omenRev' && sp.type !== 'revChoice')) return;
   document.getElementById('omenModal').style.display = 'none';
   try {
     let newGs = JSON.parse(JSON.stringify(gs));
-    delete newGs.subPhase;
-    newGs.subPhaseQueue = null;
     // 革命する/しないを選択 → 既存の革命状態を上書き
     newGs.revolution = !!doRevolution;
     showToast(doRevolution ? '🔄 革命！' : '革命しない');
-    // pendingClearは維持されたまま。次の手番へ（全員パスで場が流れる）
-    newGs.turn = nextActivePid(sp.pid, newGs);
+    // 次のサブアクションが控えていれば続行（例: 7×4で革命選択→7渡し）
+    const queue = newGs.subPhaseQueue || [];
+    if (queue.length > 0) {
+      newGs.subPhase = queue[0];
+      newGs.subPhaseQueue = queue.slice(1).length > 0 ? queue.slice(1) : null;
+      newGs.turn = sp.pid;
+    } else {
+      delete newGs.subPhase;
+      newGs.subPhaseQueue = null;
+      // omenRevはpendingClear維持（全員パスで流れる）／revChoiceは通常通り次の手番へ
+      newGs.turn = nextActivePid(sp.pid, newGs);
+    }
     if (shouldEndRound(newGs)) { await endRound(newGs); return; }
     await set(ref(db, `rooms_daifugo/${ROOM}/game`), newGs);
   } catch(e) {
-    console.error('confirmOmenRev error:', e);
+    console.error('confirmRevChoice error:', e);
     showToast('エラー: ' + e.message);
   }
 };
@@ -2176,6 +2224,9 @@ function startListeners() {
       return;
     }
     if (gs.phase === 'exchange') {
+      // 結果画面オーバーレイを必ず閉じる（消さないと交換UIに進めずデッドロックする）
+      document.getElementById('roundEnd').classList.remove('show');
+      document.getElementById('resultScreen').classList.remove('show');
       document.getElementById('gameScreen').style.display = 'none';
       // Load exchange offers then handle
       get(ref(db, `rooms_daifugo/${ROOM}/exchange_offers`)).then(snap => {
@@ -2217,8 +2268,8 @@ function startListeners() {
           }
         } else if (sp.type === 'queenBomb') {
           openQueenModal(sp.count);
-        } else if (sp.type === 'omenRev') {
-          openOmenModal();
+        } else if (sp.type === 'omenRev' || sp.type === 'revChoice') {
+          openRevChoiceModal(sp.type);
         }
       }
     }

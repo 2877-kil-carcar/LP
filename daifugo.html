@@ -102,6 +102,16 @@
   .rule-id-apply:hover { background:rgba(201,168,76,0.28); }
   .rule-id-get { padding:10px 14px; background:linear-gradient(135deg,var(--gold),#a07830); border:none; border-radius:8px; color:var(--green-deep); font-family:'Noto Sans JP',sans-serif; font-size:0.8rem; font-weight:700; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
   .rule-id-get:hover { transform:translateY(-1px); }
+  /* プリセット */
+  .rule-preset-list { display:flex; flex-direction:column; gap:8px; }
+  .preset-row { display:flex; gap:8px; }
+  .preset-apply { flex:1; padding:11px 12px; background:rgba(201,168,76,0.12); border:1px solid rgba(201,168,76,0.35); border-radius:8px; color:var(--gold); font-family:'Noto Sans JP',sans-serif; font-size:0.9rem; font-weight:700; cursor:pointer; transition:all 0.15s; text-align:left; }
+  .preset-apply:hover:not(:disabled) { background:rgba(201,168,76,0.26); }
+  .preset-apply.empty { color:rgba(201,168,76,0.4); font-weight:400; }
+  .preset-apply:disabled { cursor:not-allowed; opacity:0.55; }
+  .preset-save { padding:11px 14px; background:linear-gradient(135deg,var(--gold),#a07830); border:none; border-radius:8px; color:var(--green-deep); font-size:0.82rem; font-weight:700; cursor:pointer; white-space:nowrap; transition:transform 0.15s; }
+  .preset-save:hover:not(:disabled) { transform:translateY(-1px); }
+  .preset-save:disabled { display:none; }
 
   /* Sub panel */
   #ruleSubPanel { display:none; }
@@ -183,12 +193,8 @@
       <p class="rule-readonly-note" id="ruleReadonlyNote">※ ホストのみ変更できます（閲覧中）</p>
       <div class="rule-cat-grid" id="ruleCatGrid"></div>
       <div class="rule-id-section">
-        <div class="rule-id-label">ルールID</div>
-        <div class="rule-id-row">
-          <input type="text" class="rule-id-input" id="ruleIdInput" placeholder="ルールIDを入力..." maxlength="13" />
-          <button class="rule-id-apply" id="ruleIdApplyBtn" onclick="applyRuleId()">適用</button>
-          <button class="rule-id-get"   id="ruleIdGetBtn"   onclick="getRuleId()">取得</button>
-        </div>
+        <div class="rule-id-label">プリセット（💾で現在の設定を保存／タップで適用）</div>
+        <div class="rule-preset-list" id="rulePresetList"></div>
       </div>
     </div>
     <div id="ruleSubPanel">
@@ -375,10 +381,8 @@ window.openRuleSettings = function() {
   document.getElementById('ruleMainPanel').style.display = 'block';
   document.getElementById('ruleSubPanel').style.display  = 'none';
   document.getElementById('ruleReadonlyNote').style.display = isHost ? 'none' : 'block';
-  document.getElementById('ruleIdApplyBtn').style.display   = isHost ? 'inline-block' : 'none';
-  document.getElementById('ruleIdGetBtn').style.display     = isHost ? 'inline-block' : 'none';
-  document.getElementById('ruleIdInput').readOnly = !isHost;
   renderCatGrid();
+  renderPresets();
 };
 window.closeRuleSettings = function() {
   document.getElementById('ruleOverlay').classList.remove('show');
@@ -407,23 +411,56 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// ===== ルールID =====
-window.getRuleId = function() {
-  const id = encodeRuleId(rules);
-  document.getElementById('ruleIdInput').value = id;
-  navigator.clipboard?.writeText(id).catch(() => {});
-  showToast('ルールID をコピーしました: ' + id);
-};
-window.applyRuleId = async function() {
+// ===== ルールプリセット（ブラウザに5枠まで保存・タップで適用） =====
+const PRESET_SLOTS = 5;
+const PRESET_KEY = 'daifugo_rule_presets';
+
+function loadPresets() {
+  try { return JSON.parse(localStorage.getItem(PRESET_KEY) || '[]') || []; }
+  catch (e) { return []; }
+}
+function storePresets(arr) {
+  try { localStorage.setItem(PRESET_KEY, JSON.stringify(arr)); } catch (e) {}
+}
+
+function renderPresets() {
+  const list = document.getElementById('rulePresetList');
+  if (!list) return;
+  const presets = loadPresets();
+  list.innerHTML = '';
+  for (let i = 0; i < PRESET_SLOTS; i++) {
+    const has = !!presets[i];
+    const row = document.createElement('div');
+    row.className = 'preset-row';
+    row.innerHTML = `
+      <button class="preset-apply ${has ? '' : 'empty'}" data-i="${i}" ${(!isHost || !has) ? 'disabled' : ''}>
+        プリセット${i + 1}${has ? '' : '（空）'}
+      </button>
+      <button class="preset-save" data-i="${i}" ${isHost ? '' : 'disabled'}>💾 保存</button>`;
+    list.appendChild(row);
+  }
+  list.querySelectorAll('.preset-apply').forEach(b => b.onclick = () => applyPreset(+b.dataset.i));
+  list.querySelectorAll('.preset-save').forEach(b  => b.onclick = () => savePreset(+b.dataset.i));
+}
+
+async function applyPreset(i) {
   if (!isHost) return;
-  const id = document.getElementById('ruleIdInput').value.trim();
-  const decoded = decodeRuleId(id);
-  if (!decoded) { showToast('無効なルールIDです'); return; }
-  rules = decoded;
+  const p = loadPresets()[i];
+  if (!p) { showToast('このプリセットは空です'); return; }
+  rules = { ...DEFAULT_RULES, ...p };
   if (ROOM) await update(ref(db, 'rooms_daifugo/' + ROOM + '/rules'), rules);
   renderCatGrid();
-  showToast('ルールを適用しました');
-};
+  showToast(`プリセット${i + 1} を適用しました`);
+}
+
+function savePreset(i) {
+  if (!isHost) return;
+  const presets = loadPresets();
+  presets[i] = { ...rules };
+  storePresets(presets);
+  renderPresets();
+  showToast(`現在のルールをプリセット${i + 1} に保存しました`);
+}
 
 // ===== Firebase: 部屋管理 =====
 async function cleanupOldRooms() {
