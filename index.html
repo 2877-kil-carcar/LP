@@ -1269,6 +1269,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
     z-index: 0;
     pointer-events: none;
     /* スクロールで顔（上中央）に向かってズームイン＋ゆるくフェード */
@@ -1397,8 +1398,8 @@
 <!-- HERO（縦長ステージ：この区間スクロール中、動画が固定されて進む） -->
 <section class="hero-stage" id="heroStage">
   <div class="hero hero-sticky">
-    <!-- 全面背景動画（スクロール量に合わせてコマ送り＝scrub） -->
-    <video class="hero-bg-video" id="heroVideo" src="v2_watermarked-7b3b69ad-1084-4ca4-b7a6-06d7e5d2edec.mp4" muted playsinline preload="auto"></video>
+    <!-- 全面背景：連番画像をcanvasに描画してスクロールでコマ送り（PC/スマホ共通で確実に動く） -->
+    <canvas class="hero-bg-video" id="heroCanvas"></canvas>
     <div class="hero-overlay"></div>
 
     <div class="hero-content">
@@ -1557,20 +1558,48 @@ const risePanel = document.getElementById('risePanel');
    スクロール連動の背景グラデーション（黒×赤）＋ヒーロー演出
    ============================================================ */
 (function(){
-  const bgEl    = document.getElementById('scrollBg');
-  const heroEl  = document.querySelector('.hero');
-  const videoEl = document.getElementById('heroVideo');
+  const bgEl   = document.getElementById('scrollBg');
+  const heroEl = document.querySelector('.hero');
 
-  // 動画はスクロール量に合わせてコマ送り（scrub）。自動では動かさない。
-  let videoDur = 0;
-  let seeking = false; // seek多重発行で固まるのを防ぐ
-  if (videoEl) {
-    videoEl.pause();
-    videoEl.addEventListener('loadedmetadata', () => {
-      videoDur = isFinite(videoEl.duration) ? videoEl.duration : 0;
-      update();
-    });
-    videoEl.addEventListener('seeked', () => { seeking = false; });
+  /* ── 連番画像をcanvasに描画してスクロールでコマ送り（PC/スマホ共通） ── */
+  const canvas = document.getElementById('heroCanvas');
+  const ctx    = canvas ? canvas.getContext('2d') : null;
+  const FRAME_COUNT = 121;
+  const frames = [];
+  let curFrame = -1;
+  const pad = (n) => String(n).padStart(3, '0');
+
+  // 先頭フレームを優先的に読み込み→順次プリロード
+  for (let i = 1; i <= FRAME_COUNT; i++) {
+    const img = new Image();
+    img.src = `frames/f_${pad(i)}.jpg`;
+    if (i === 1) img.onload = () => { resizeCanvas(); };
+    frames.push(img);
+  }
+
+  function resizeCanvas() {
+    if (!canvas) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!w || !h) return;
+    canvas.width  = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    drawFrame(curFrame < 0 ? 0 : curFrame, true);
+  }
+
+  function drawFrame(idx, force) {
+    if (!ctx) return;
+    idx = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round(idx)));
+    if (!force && idx === curFrame) return;
+    const img = frames[idx];
+    if (!img || !img.complete || !img.naturalWidth) return; // 未ロードはスキップ
+    curFrame = idx;
+    const cw = canvas.width, ch = canvas.height;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    const scale = Math.max(cw / iw, ch / ih); // cover
+    const dw = iw * scale, dh = ih * scale;
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
   }
   // 上→下のカラーパレット（base=地色, glow=発光色）。黒×赤×ゴールドで統一。
   const STOPS = [
@@ -1628,21 +1657,16 @@ const risePanel = document.getElementById('risePanel');
       risePanel.classList.toggle('rise-on', rp > 0.02);
     }
 
-    // 動画をスクロール量に合わせてコマ送り（止めれば止まる）
-    // 直前のseekが終わるまで次のseekを出さない＝引っかかり(途中停止)を低減
-    if (videoEl && videoDur > 0 && !seeking) {
-      const t = hp * videoDur;
-      if (Math.abs(videoEl.currentTime - t) > 0.05) {
-        seeking = true;
-        try { videoEl.currentTime = t; } catch (e) { seeking = false; }
-      }
-    }
+    // スクロール量に合わせて連番画像のフレームを描画（止めれば止まる）
+    drawFrame(hp * (FRAME_COUNT - 1));
   }
   function onScroll() {
     if (!ticking) { ticking = true; requestAnimationFrame(update); }
   }
   window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', update);
+  window.addEventListener('resize', () => { resizeCanvas(); update(); });
+  window.addEventListener('load', () => { resizeCanvas(); update(); });
+  resizeCanvas();
   update();
 })();
 
