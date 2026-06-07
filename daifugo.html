@@ -456,7 +456,10 @@ async function applyPreset(i) {
 function savePreset(i) {
   if (!isHost) return;
   const presets = loadPresets();
-  presets[i] = { ...rules };
+  // DEFAULT_RULES に存在するキーだけ保存（撤去済みルール等の残骸混入を防ぐ）
+  const clean = {};
+  for (const k of Object.keys(DEFAULT_RULES)) clean[k] = rules[k];
+  presets[i] = clean;
   storePresets(presets);
   renderPresets();
   showToast(`現在のルールをプリセット${i + 1} に保存しました`);

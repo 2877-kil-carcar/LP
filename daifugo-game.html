@@ -221,6 +221,18 @@ body{background:var(--bg);font-family:'Noto Sans JP',sans-serif;color:var(--crea
     <div class="g-round" id="gRound">ラウンド 1 / 5</div>
     <div class="g-effects" id="gEffects"></div>
     <div style="font-size:10px;color:var(--muted)" id="gScore"></div>
+    <button id="rulesViewBtn" onclick="openRulesView()" style="padding:5px 12px;background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.45);border-radius:999px;color:var(--gold);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">📜 ルール</button>
+  </div>
+
+  <!-- ルール閲覧モーダル -->
+  <div id="rulesViewModal" style="display:none">
+    <div class="modal-bg" onclick="if(event.target===this)closeRulesView()">
+      <div class="modal-box">
+        <div class="modal-title">適用中のルール</div>
+        <div id="rulesViewList" style="font-size:13px;line-height:1.7;max-height:60vh;overflow-y:auto;text-align:left"></div>
+        <div class="modal-footer"><button class="btn-confirm" onclick="closeRulesView()">閉じる</button></div>
+      </div>
+    </div>
   </div>
   <div class="board-area" id="boardArea">
     <!-- 対戦相手エリア（JS生成） -->
@@ -355,7 +367,38 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getDatabase, ref, get, set, update, onValue, onDisconnect, runTransaction, push }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-const { DEFAULT_RULES } = window.DaifugoRules;
+const { DEFAULT_RULES, SUB_ITEMS } = window.DaifugoRules;
+
+// ===== プレイ中のルール閲覧 =====
+window.openRulesView = function() {
+  const el = document.getElementById('rulesViewList');
+  const onItems = [];
+  const items = SUB_ITEMS || {};
+  for (const cat in items) {
+    for (const it of items[cat]) {
+      if (!it || !it.key) continue;
+      const v = rules[it.key];
+      if (it.type === 'bool') {
+        if (v) onItems.push(`✅ ${it.label}`);
+      } else if (v && v !== 'off') {
+        // 3ステート/カスタムは日本語ラベルに変換して表示
+        let disp = (v === 'on') ? 'ON' : (v === 'yasashii' ? 'やさしい' : v);
+        if (it.type === 'threeCustom' && Array.isArray(it.values)) {
+          const idx = it.values.indexOf(v);
+          if (idx >= 0 && it.labels) disp = it.labels[idx];
+        }
+        onItems.push(`✅ ${it.label}：${disp}`);
+      }
+    }
+  }
+  el.innerHTML = onItems.length
+    ? onItems.map(t => `<div>${t}</div>`).join('')
+    : '<div style="color:var(--muted)">特別ルールはすべてOFF（基本ルール）</div>';
+  document.getElementById('rulesViewModal').style.display = 'block';
+};
+window.closeRulesView = function() {
+  document.getElementById('rulesViewModal').style.display = 'none';
+};
 
 // ===== Firebase =====
 const firebaseConfig = {
@@ -540,6 +583,13 @@ function canPlay(cards, gs, rules) {
 
   // Empty field: anything valid
   if (!field.length) return true;
+
+  // 4止めのみ：強さ無視でペアの場に出して流せる（8のペアにも4×2/4+JKでかぶせOK）。
+  // 救急車(99)・ろくろ首(66)は強さ無視しない＝通常の強弱判定に従う（99は88以下/66は55以下の場のみ）。
+  if (cards.length === 2 && field.length === 2 && rules.fourStop) {
+    const nj2 = cards.filter(c => c.s !== 'JK');
+    if (nj2.length > 0 && nj2.every(c => c.n === 4)) return true;
+  }
 
   // Count must match
   if (cards.length !== field.length) return false;
@@ -783,7 +833,7 @@ function computeRankings(gs) {
 
 function rankName(idx, n) {
   if (n === 2) return idx === 0 ? '大富豪' : '大貧民';
-  if (n === 3) return ['大富豪','貧民','大貧民'][idx];
+  if (n === 3) return ['富豪','平民','貧民'][idx]; // 3人＝富豪/平民/貧民
   if (n >= 4) {
     if (idx === 0) return '大富豪';
     if (idx === 1) return '富豪';
@@ -800,6 +850,15 @@ function rankBadgeClass(name) {
 
 function rankPoint(name) {
   return {大富豪:2,富豪:1,平民:0,貧民:-1,大貧民:-2}[name] ?? 0;
+}
+
+// プレイ中の階級バッジは「前ラウンドの結果(gs.rankings)」基準で表示する。
+// 初回ラウンド(rankings空)は全員『平民』＝バッジなしになる。
+function classBadgeName(pid, gsData) {
+  const r = gsData.rankings || [];
+  const idx = r.indexOf(pid);
+  if (idx < 0) return '';
+  return rankName(idx, (gsData.turnOrder || []).length);
 }
 
 // ====================================================================
@@ -1359,8 +1418,9 @@ window.confirmRevChoice = async function(doRevolution) {
   document.getElementById('omenModal').style.display = 'none';
   try {
     let newGs = JSON.parse(JSON.stringify(gs));
-    // 革命する/しないを選択 → 既存の革命状態を上書き
-    newGs.revolution = !!doRevolution;
+    // 「革命する」を選んだ時だけ反転（トグル）。これにより革命中の選択＝革命返しで通常へ戻る。
+    // 「しない」は現在の革命状態を維持。
+    if (doRevolution) newGs.revolution = !newGs.revolution;
     showToast(doRevolution ? '🔄 革命！' : '革命しない');
     // 次のサブアクションが控えていれば続行（例: 7×4で革命選択→7渡し）
     const queue = newGs.subPhaseQueue || [];
@@ -1512,8 +1572,10 @@ window.proceedNext = async function() {
     tenpenchi_triggered: false, // 毎ラウンドのバナー誤表示を防ぐ
   };
   updates[`rooms_daifugo/${ROOM}/game`] = newGs;
-  updates[`rooms_daifugo/${ROOM}/exchange_offers`] = null; // clear previous round's exchange data
-  updates[`rooms_daifugo/${ROOM}/exchange_done`]   = null;
+  updates[`rooms_daifugo/${ROOM}/exchange_offers`]    = null; // clear previous round's exchange data
+  updates[`rooms_daifugo/${ROOM}/exchange_done`]      = null;
+  updates[`rooms_daifugo/${ROOM}/exchange_finalized`] = null;
+  updates[`rooms_daifugo/${ROOM}/exchange_log`]       = null;
   document.getElementById('roundEnd').classList.remove('show');
   await update(ref(db), updates);
 };
@@ -1524,11 +1586,14 @@ async function handleExchangePhase(gsData) {
   const n = rankings.length;
   if (n < 2) return;
 
-  // Determine who exchanges with whom
-  // 大富豪(rank 0) ↔ 大貧民(rank n-1): 2枚
-  // 富豪(rank 1) ↔ 貧民(rank n-2): 1枚
+  // 配られた手札を確実に使う（hands listenerの反映待ちのズレで古い手札を渡さないように）
+  myHand = await getHand(MY_PID);
+
+  // Determine who exchanges with whom（枚数は階級で決まる）
+  // 大富豪↔大貧民: 2枚 ／ 富豪↔貧民: 1枚（3人は富豪↔貧民=1枚、平民は交換なし）
   const pairs = [];
-  if (n >= 2) pairs.push({ upper: rankings[0], lower: rankings[n-1], count: 2 });
+  const topCount = rankName(0, n) === '大富豪' ? 2 : 1;
+  if (n >= 2) pairs.push({ upper: rankings[0], lower: rankings[n-1], count: topCount });
   if (n >= 4) pairs.push({ upper: rankings[1], lower: rankings[n-2], count: 1 });
 
   // Am I in an exchange?
@@ -1715,6 +1780,9 @@ async function executeExchange(pair, lowerOffer, upperReturn, gsData) {
   const upperNew = [...removeCards(upperHandRaw, upperReturn), ...lowerOffer];
   updates[`rooms_daifugo/${ROOM}/hands/${pair.upper}`] = upperNew;
   updates[`rooms_daifugo/${ROOM}/exchange_done/${pair.upper}`] = true;
+  // 交換内容ログ（各自に「渡した／受け取った」を通知するため）
+  updates[`rooms_daifugo/${ROOM}/exchange_log/${pair.lower}`] = { gave: lowerOffer, got: upperReturn };
+  updates[`rooms_daifugo/${ROOM}/exchange_log/${pair.upper}`] = { gave: upperReturn, got: lowerOffer };
 
   // Check if all pairs done
   const rankings = gsData.rankings || [];
@@ -1723,11 +1791,27 @@ async function executeExchange(pair, lowerOffer, upperReturn, gsData) {
   if (n >= 2) pairs.push({ upper: rankings[0], lower: rankings[n-1] });
   if (n >= 4) pairs.push({ upper: rankings[1], lower: rankings[n-2] });
 
+  // まず自分の交換ぶんを書き込む（場への移行は全ペア完了後に1人が行う）
+  await update(ref(db), updates);
+  for (const k in updates) delete updates[k]; // 以降の最終処理用にクリア
+
   const doneSnap = await get(ref(db, `rooms_daifugo/${ROOM}/exchange_done`));
   const done = { ...(doneSnap.val() || {}), [pair.upper]: true };
-  const allDone = pairs.every(p => done[p.upper]);
+  // 'processing'(claim中)を完了扱いしない＝両ペアの交換確定後にのみfinalize
+  const allDone = pairs.every(p => done[p.upper] === true);
 
-  if (allDone && isHost) {
+  // 全ペア完了：最終処理(場へ移行＋天変地異)は transaction で1クライアントだけが実行
+  // （上位がホストとは限らないため isHost 依存をやめる。これが3人交換固まりの原因だった）
+  let doFinalize = false;
+  if (allDone) {
+    const fin = await runTransaction(
+      ref(db, `rooms_daifugo/${ROOM}/exchange_finalized`),
+      (cur) => (cur == null ? true : undefined)
+    );
+    doFinalize = fin.committed;
+  }
+
+  if (doFinalize) {
     // Check tenpenchi
     const daihinminPid = rankings[n-1];
     const daihinminHand = daihinminPid === pair.lower ? lowerNew
@@ -1755,15 +1839,13 @@ async function executeExchange(pair, lowerOffer, upperReturn, gsData) {
       newGs.tenpenchi_triggered = true;
     }
 
-    // exchange_done全体をnullにするので、個別キー(exchange_done/{upper})の指定は削除する
-    // （祖先パスと子パスを同一update()に含めるとFirebaseが例外を投げるため）
-    delete updates[`rooms_daifugo/${ROOM}/exchange_done/${pair.upper}`];
     updates[`rooms_daifugo/${ROOM}/game`] = newGs;
-    updates[`rooms_daifugo/${ROOM}/exchange_done`] = null;
-    updates[`rooms_daifugo/${ROOM}/exchange_offers`] = null;
+    updates[`rooms_daifugo/${ROOM}/exchange_done`]      = null;
+    updates[`rooms_daifugo/${ROOM}/exchange_offers`]    = null;
+    updates[`rooms_daifugo/${ROOM}/exchange_finalized`] = null;
   }
 
-  await update(ref(db), updates);
+  if (Object.keys(updates).length > 0) await update(ref(db), updates);
   document.getElementById('exchangeScreen').classList.remove('show');
 }
 
@@ -2016,7 +2098,6 @@ function renderOppZones(gsData) {
   const cont  = document.getElementById('oppZones');
   cont.innerHTML = '';
 
-  const rankMap = computeRankings(gsData);
   const n = order.length;
 
   // 自分があがり/都落ち等で非アクティブ → 観戦者として全員の手札を公開表示
@@ -2033,8 +2114,7 @@ function renderOppZones(gsData) {
     const div = document.createElement('div');
     div.className = `pzone ${zone}`;
 
-    const rIdx = rankMap[pid];
-    const rName = rIdx !== undefined ? rankName(rIdx, n) : '';
+    const rName = classBadgeName(pid, gsData);
 
     // カード表示：観戦者は実カードを公開、それ以外は裏向き（5枚超は5枚固定）
     let cardsHtml = '';
@@ -2076,10 +2156,7 @@ function getZones(count) {
 
 function renderSelfInfo(gsData) {
   document.getElementById('selfName').textContent = MY_NAME;
-  const n = (gsData.turnOrder || []).length;
-  const rankMap = computeRankings(gsData);
-  const rIdx = rankMap[MY_PID];
-  const rName = rIdx !== undefined ? rankName(rIdx, n) : '';
+  const rName = classBadgeName(MY_PID, gsData); // 前ラウンド結果ベース（初回は空＝平民）
   const badge = document.getElementById('selfRankBadge');
   if (rName) {
     badge.textContent = rName;
@@ -2298,44 +2375,75 @@ function startListeners() {
     if (snap.exists()) players = snap.val();
   });
 
-  // Disconnect handler — set flag on disconnect
-  onDisconnect(ref(db, `rooms_daifugo/${ROOM}/disconnected/${MY_PID}`)).set(true);
+  // ── 切断検知（猶予つき・緩め） ──
+  // .info/connected を使い、接続するたびに onDisconnect を再登録＆自分のフラグを消す（復帰扱い）。
+  // 一瞬の通信断（画面ロック/タブ切替/電波揺れ）で即落とさないよう、ホストは猶予後に再確認してから処理。
+  const myDiscRef = ref(db, `rooms_daifugo/${ROOM}/disconnected/${MY_PID}`);
+  onValue(ref(db, '.info/connected'), (snap) => {
+    if (snap.val() === true) {
+      onDisconnect(myDiscRef).set(true);  // 切断したらフラグが立つよう予約（毎回登録し直す）
+      set(myDiscRef, null);               // 今オンライン → フラグを消す
+    }
+  });
 
-  // Watch for disconnections (host only handles to avoid race conditions)
-  onValue(ref(db, `rooms_daifugo/${ROOM}/disconnected`), async snap => {
-    if (!snap.exists() || !gs || !isHost) return;
-    const disc = snap.val();
+  const DISCONNECT_GRACE_MS = 120000; // 2分つながらなければ切断とみなす（猶予）
+  const pendingDisc = {};            // pid -> timeoutId
+
+  async function retireDisconnected(pid) {
+    if (!gs || !isHost) return;
+    if (!gs.turnOrder || !gs.turnOrder.includes(pid) || !isActive(pid, gs)) return;
+    let newGs = JSON.parse(JSON.stringify(gs));
+    retirePlayer(pid, newGs);
+    showToast(`${players[pid]?.name || pid} が切断しました`);
+    const updates = {};
+    updates[`rooms_daifugo/${ROOM}/disconnected/${pid}`] = null;
+    updates[`rooms_daifugo/${ROOM}/left/${pid}`] = true; // 次ラウンド以降は除外
+    // サブアクション待ちだった場合は破棄してゲーム停止を防ぐ
+    if (newGs.subPhase && newGs.subPhase.pid === pid) {
+      newGs.subPhase = null;
+      newGs.subPhaseQueue = null;
+      if (newGs.turn === pid) newGs.turn = nextActivePid(pid, newGs);
+    }
+    if (shouldEndRound(newGs)) {
+      await endRound(newGs);
+    } else {
+      if (newGs.turn === pid) newGs.turn = nextActivePid(pid, newGs);
+      updates[`rooms_daifugo/${ROOM}/game`] = newGs;
+      await update(ref(db), updates);
+    }
+  }
+
+  // ホストのみ：切断フラグを監視。猶予タイマー後に「まだ切断中か」を再確認してからリタイア。
+  onValue(ref(db, `rooms_daifugo/${ROOM}/disconnected`), (snap) => {
+    if (!gs || !isHost) return;
+    const disc = snap.val() || {};
+    // フラグが消えた人（＝復帰）は予約キャンセル
+    for (const pid in pendingDisc) {
+      if (!disc[pid]) { clearTimeout(pendingDisc[pid]); delete pendingDisc[pid]; }
+    }
     for (const pid in disc) {
-      if (!disc[pid]) continue;
-      if (!gs.turnOrder || !gs.turnOrder.includes(pid)) continue;
-      if (!isActive(pid, gs)) continue;
-      let newGs = JSON.parse(JSON.stringify(gs));
-      retirePlayer(pid, newGs);
-      showToast(`${players[pid]?.name || pid} が切断しました`);
-      const updates = {};
-      updates[`rooms_daifugo/${ROOM}/disconnected/${pid}`] = null;
-      // 永続的な離脱記録 → 次ラウンド以降この人を除外（再配札/交換デッドロック防止）
-      updates[`rooms_daifugo/${ROOM}/left/${pid}`] = true;
-      // 切断者がサブアクション（7渡し/10捨て/Qボンバー）のモーダル待ちだった場合、
-      // subPhaseを破棄しないと誰も解決できずゲームが停止する
-      if (newGs.subPhase && newGs.subPhase.pid === pid) {
-        newGs.subPhase = null;
-        newGs.subPhaseQueue = null;
-        if (newGs.turn === pid) newGs.turn = nextActivePid(pid, newGs);
-      }
-      if (shouldEndRound(newGs)) {
-        await endRound(newGs);
-      } else {
-        if (newGs.turn === pid) newGs.turn = nextActivePid(pid, newGs);
-        updates[`rooms_daifugo/${ROOM}/game`] = newGs;
-        await update(ref(db), updates);
-      }
+      if (!disc[pid] || pendingDisc[pid]) continue;
+      if (!gs.turnOrder || !gs.turnOrder.includes(pid) || !isActive(pid, gs)) continue;
+      pendingDisc[pid] = setTimeout(async () => {
+        delete pendingDisc[pid];
+        const still = (await get(ref(db, `rooms_daifugo/${ROOM}/disconnected/${pid}`))).val();
+        if (still) await retireDisconnected(pid); // 猶予後もまだ切断 → リタイア
+      }, DISCONNECT_GRACE_MS);
     }
   });
 
   // 永続離脱プレイヤー listener
   onValue(ref(db, `rooms_daifugo/${ROOM}/left`), snap => {
     leftPlayers = snap.val() || {};
+  });
+
+  // 自分のカード交換結果（渡した/受け取った）を通知 → 表示後に消す
+  onValue(ref(db, `rooms_daifugo/${ROOM}/exchange_log/${MY_PID}`), snap => {
+    const log = snap.val();
+    if (!log) return;
+    const fmt = (arr) => (arr || []).map(c => c.s === 'JK' ? 'JK' : (NUM_LABEL[c.n] + SUIT_SYM[c.s])).join(' ') || 'なし';
+    showToast(`交換 🔁 渡した: ${fmt(log.gave)} ／ 受け取った: ${fmt(log.got)}`);
+    set(ref(db, `rooms_daifugo/${ROOM}/exchange_log/${MY_PID}`), null);
   });
 
   // チャット listener
