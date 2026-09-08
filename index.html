@@ -1371,6 +1371,341 @@
       height: calc(100% - var(--bannerH, 70px));
     }
   }
+
+  /* ══════════════════════════════════════════
+     ✦ REACT BITS 移植（vanilla CSS/JS）
+        Blur Text / Shiny Text / Gradient Text / Light Rays / Particles
+        Scroll Velocity / Spotlight Card / Tilted Card / Star Border
+        Magnet / Click Spark / Count Up / Aurora
+     ══════════════════════════════════════════ */
+
+  /* ── Blur Text：1文字ずつ ぼかし→ピント で浮かび上がる ── */
+  .bt-ch {
+    display: inline-block;
+    opacity: 0;
+    filter: blur(14px);
+    transform: translateY(18px);
+    animation: btIn 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+    animation-delay: var(--d, 0s);
+    will-change: opacity, filter, transform;
+  }
+  @keyframes btIn {
+    0%   { opacity: 0; filter: blur(14px); transform: translateY(18px); }
+    60%  { opacity: 1; filter: blur(3px);  transform: translateY(-3px); }
+    100% { opacity: 1; filter: blur(0);    transform: translateY(0); }
+  }
+  /* h1 内の文字spanは `.hero h1 span`(赤) の影響を受けないよう継承に戻す */
+  .hero h1 .bt-ch { color: inherit; }
+  /* サブ文はブロック全体のfadeUpをやめ、文字単位に任せる */
+  .hero .hero-content .hero-sub { animation: none; }
+
+  /* ── Shiny Text：光の帯が文字を横切る ── */
+  .shiny-text {
+    background: linear-gradient(
+      120deg,
+      rgba(212,175,55,0.65) 35%,
+      #FFF6C8 50%,
+      rgba(212,175,55,0.65) 65%
+    );
+    background-size: 220% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    animation: shine 3.2s linear infinite;
+  }
+  @keyframes shine {
+    0%   { background-position: 180% center; }
+    100% { background-position: -80% center; }
+  }
+
+  /* ── Gradient Text：金→紅→金 が流れる見出し ── */
+  .cta-section .section-title.gradient-text {
+    background: linear-gradient(90deg, #D4AF37 0%, #FF4060 30%, #FFD700 55%, #D4AF37 80%, #FF4060 100%);
+    background-size: 300% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: none;
+    animation: gradientMove 7s linear infinite;
+  }
+  @keyframes gradientMove {
+    0%   { background-position: 0% center; }
+    100% { background-position: 300% center; }
+  }
+
+  /* ── Light Rays：天井から差し込む金色の光条（ヒーロー） ── */
+  .hero-rays {
+    position: absolute;
+    inset: -30% -20% 0 -20%;
+    z-index: 1;
+    pointer-events: none;
+    background: repeating-conic-gradient(
+      from 0deg at 50% 0%,
+      rgba(255,215,0,0)    0deg,
+      rgba(255,215,0,0.09) 2.5deg,
+      rgba(255,215,0,0)    5deg,
+      rgba(255,215,0,0)    13deg
+    );
+    -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 45%, transparent 80%);
+    mask-image: linear-gradient(180deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.5) 45%, transparent 80%);
+    mix-blend-mode: screen;
+    transform-origin: 50% 0%;
+    animation: raysSway 16s ease-in-out infinite alternate;
+    opacity: calc(0.9 - var(--heroProgress, 0) * 1.4);
+  }
+  @keyframes raysSway {
+    0%   { transform: rotate(-4deg) scaleX(1.05); }
+    100% { transform: rotate(4deg)  scaleX(0.95); }
+  }
+
+  /* ── Particles：舞う金の粒子（canvas） ── */
+  #heroParticles {
+    position: absolute;
+    inset: 0;
+    width: 100%;   /* canvasは置換要素なので inset だけでは広がらない */
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+    opacity: calc(1 - var(--heroProgress, 0) * 1.3);
+  }
+
+  /* ── 3D Rise：カードが奥・下から起き上がって着地（旧・横流れの置き換え） ── */
+  .gallery-grid {
+    perspective: 1200px;
+    perspective-origin: 50% 30%;
+  }
+  .gallery-card {
+    transform-origin: 50% 100%;
+    backface-visibility: hidden;
+  }
+
+  /* ── Rolling Gallery：最新収蔵を 3D の輪にして回す（ドラッグで回転） ── */
+  .rolling-wrap { margin: 4px 0 44px; }
+  .rolling-label {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+  }
+  .rolling-stage {
+    --fw: 180px;
+    position: relative;
+    height: 270px;
+    perspective: 1100px;
+    perspective-origin: 50% 45%;
+    overflow: hidden;
+    cursor: grab;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  }
+  .rolling-stage.dragging { cursor: grabbing; }
+  .rolling-ring {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 0; height: 0;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  .rolling-face {
+    position: absolute;
+    width: var(--fw); height: var(--fw);
+    left: calc(var(--fw) / -2); top: calc(var(--fw) / -2);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #1A0A0C;
+    box-shadow:
+      0 0 0 2px #3D1F0D,
+      0 0 0 4px rgba(212,175,55,0.6),
+      0 14px 36px rgba(0,0,0,0.65);
+    backface-visibility: hidden;
+    cursor: pointer;
+  }
+  .rolling-face img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    pointer-events: none;
+  }
+  .rolling-face::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 30%, transparent 60%, rgba(13,4,6,0.55) 100%);
+    pointer-events: none;
+  }
+  /* 床の反射っぽい金の光 */
+  .rolling-stage::after {
+    content: '';
+    position: absolute;
+    left: 50%; bottom: 8px;
+    width: 60%; height: 40px;
+    transform: translateX(-50%);
+    background: radial-gradient(ellipse at 50% 100%, rgba(212,175,55,0.28), transparent 70%);
+    pointer-events: none;
+  }
+  @media (max-width: 700px) {
+    .rolling-stage { --fw: 118px; height: 190px; }
+    .rolling-wrap { margin-bottom: 28px; }
+  }
+
+  /* ── Scroll Velocity：スクロール速度で加速する金文字リボン ── */
+  .velocity-strip {
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    padding: 22px 0 10px;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  }
+  .velocity-row {
+    display: flex;
+    white-space: nowrap;
+    will-change: transform;
+    font-family: 'Kaisei Decol', serif;
+    font-weight: 700;
+    font-size: clamp(26px, 5vw, 54px);
+    letter-spacing: 4px;
+    line-height: 1.25;
+    user-select: none;
+  }
+  .velocity-row span { padding-right: 0.7em; flex-shrink: 0; }
+  .velocity-row.outline span {
+    color: transparent;
+    -webkit-text-stroke: 1px rgba(212,175,55,0.6);
+  }
+  .velocity-row.fill span {
+    color: rgba(212,175,55,0.15);
+    text-shadow: 0 0 18px rgba(212,175,55,0.15);
+  }
+
+  /* ── Spotlight Card + Tilted Card：額縁がマウスに追従して傾き、光が走る ── */
+  .gallery-item::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: radial-gradient(
+      circle at var(--mx, 50%) var(--my, 50%),
+      rgba(255,240,170,0.32) 0%,
+      rgba(255,215,0,0.10) 28%,
+      transparent 60%
+    );
+    mix-blend-mode: screen;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .gallery-item:hover::after { opacity: 1; }
+    .gallery-item.is-tilt {
+      transition: transform 0.08s linear, box-shadow 0.28s ease;
+      animation: none;
+    }
+  }
+
+  /* ── Star Border：ボタンの縁を金の光点が周回 ── */
+  .star-border {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .star-border::before,
+  .star-border::after {
+    content: '';
+    position: absolute;
+    width: 280%;
+    height: 45%;
+    z-index: -1;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+  .star-border::before {
+    bottom: -12px;
+    right: -240%;
+    background: radial-gradient(circle, rgba(255,235,150,0.95), transparent 12%);
+    animation: starBottom 5s linear infinite alternate;
+  }
+  .star-border::after {
+    top: -12px;
+    left: -240%;
+    background: radial-gradient(circle, rgba(255,235,150,0.95), transparent 12%);
+    animation: starTop 5s linear infinite alternate;
+  }
+  @keyframes starBottom {
+    0%   { transform: translateX(0);     opacity: 0.9; }
+    100% { transform: translateX(-100%); opacity: 0.4; }
+  }
+  @keyframes starTop {
+    0%   { transform: translateX(0);     opacity: 0.9; }
+    100% { transform: translateX(100%);  opacity: 0.4; }
+  }
+
+  /* ── Magnet：ボタンがカーソルへ吸い寄せられる ── */
+  .magnet {
+    display: inline-block;
+    transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+    will-change: transform;
+  }
+  .magnet.is-near { transition: transform 0.12s ease-out; }
+  .gallery-header > .magnet { flex-shrink: 0; }
+
+  /* ── Click Spark：クリック位置から金の火花 ── */
+  #sparkCanvas {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+  }
+
+  /* ── Aurora：CTA背景をゆらめく紅×金のオーロラ ── */
+  .aurora {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    filter: blur(48px);
+    opacity: 0.6;
+  }
+  .aurora i {
+    position: absolute;
+    width: 60vmax;
+    height: 60vmax;
+    border-radius: 50%;
+    will-change: transform;
+  }
+  .aurora i:nth-child(1) {
+    top: -30%; left: -20%;
+    background: radial-gradient(circle, rgba(196,30,58,0.6), transparent 60%);
+    animation: auroraA 18s ease-in-out infinite alternate;
+  }
+  .aurora i:nth-child(2) {
+    top: -10%; right: -25%;
+    background: radial-gradient(circle, rgba(212,175,55,0.45), transparent 60%);
+    animation: auroraB 22s ease-in-out infinite alternate;
+  }
+  .aurora i:nth-child(3) {
+    bottom: -40%; left: 20%;
+    background: radial-gradient(circle, rgba(139,0,0,0.6), transparent 60%);
+    animation: auroraC 26s ease-in-out infinite alternate;
+  }
+  @keyframes auroraA { 0% { transform: translate(0,0) scale(1); }    100% { transform: translate(30%, 20%) scale(1.25); } }
+  @keyframes auroraB { 0% { transform: translate(0,0) scale(1.1); }  100% { transform: translate(-35%, 30%) scale(0.9); } }
+  @keyframes auroraC { 0% { transform: translate(0,0) scale(1); }    100% { transform: translate(25%, -30%) scale(1.3); } }
+  .cta-section > .reveal { position: relative; z-index: 1; }
+
+  /* ── 動きを減らす設定の人には演出をオフ ── */
+  @media (prefers-reduced-motion: reduce) {
+    .bt-ch { animation: none; opacity: 1; filter: none; transform: none; }
+    .shiny-text, .gradient-text, .hero-rays, .aurora i,
+    .star-border::before, .star-border::after { animation: none; }
+    .hero-rays, #heroParticles, #sparkCanvas, .velocity-strip { display: none; }
+    .magnet { transition: none; }
+  }
 </style>
 </head>
 <body>
@@ -1402,12 +1737,15 @@
     <!-- 全面背景：連番画像をcanvasに描画してスクロールでコマ送り（PC/スマホ共通で確実に動く） -->
     <canvas class="hero-bg-video" id="heroCanvas"></canvas>
     <div class="hero-overlay"></div>
+    <!-- React Bits: Light Rays（CSS）＋ Particles（canvas） -->
+    <div class="hero-rays" aria-hidden="true"></div>
+    <canvas id="heroParticles" aria-hidden="true"></canvas>
 
     <div class="hero-content">
-      <div class="hero-badge">✦ THE FLUFFY HALL ✦</div>
-      <h1>もふもふの<span>殿堂</span></h1>
-      <p class="hero-sub">世界一かわいいもふもふたちを<br>厳選収蔵した、至高のギャラリーへようこそ🖼️</p>
-      <a href="#gallery" class="hero-cta">コレクションを見る →</a>
+      <div class="hero-badge"><span class="shiny-text">✦ THE FLUFFY HALL ✦</span></div>
+      <h1 data-blur-text>もふもふの<span>殿堂</span></h1>
+      <p class="hero-sub" data-blur-text data-blur-delay="0.9" data-blur-step="0.028">世界一かわいいもふもふたちを<br>厳選収蔵した、至高のギャラリーへようこそ🖼️</p>
+      <span class="magnet"><a href="#gallery" class="hero-cta star-border">コレクションを見る →</a></span>
     </div>
 
     <div class="scroll-hint">SCROLL</div>
@@ -1420,19 +1758,33 @@
 <!-- WOOD STRIP -->
 <div class="wood-strip"></div>
 
+<!-- React Bits: Scroll Velocity（スクロール速度で加速する金文字リボン） -->
+<div class="velocity-strip" id="velocityStrip" aria-hidden="true">
+  <div class="velocity-row outline" data-dir="-1" data-text="THE FLUFFY HALL ✦ もふもふの殿堂 ✦ "></div>
+  <div class="velocity-row fill"    data-dir="1"  data-text="COLLECTION ✦ 世界一かわいいもふもふ ✦ "></div>
+</div>
+
 <!-- GALLERY (DYNAMIC) -->
 <section class="gallery-section" id="gallery">
 
   <div class="gallery-header">
     <div class="gallery-header-left">
-      <span class="section-label">COLLECTION</span>
+      <span class="section-label shiny-text">COLLECTION</span>
       <h2 class="section-title" style="margin-bottom:4px;">もふもふ<br>コレクション</h2>
       <p class="gallery-count" id="galleryCount">— 作品</p>
     </div>
-    <button class="upload-btn" id="uploadBtn" title="写真を追加する">＋</button>
+    <span class="magnet"><button class="upload-btn" id="uploadBtn" title="写真を追加する">＋</button></span>
   </div>
 
   <div class="gallery-divider"></div>
+
+  <!-- React Bits: Rolling Gallery（最新収蔵の 3D 回転リング） -->
+  <div class="rolling-wrap" id="rollingWrap" style="display:none">
+    <p class="rolling-label"><span class="shiny-text">✦ LATEST ARRIVALS ✦</span></p>
+    <div class="rolling-stage" id="rollingStage">
+      <div class="rolling-ring" id="rollingRing"></div>
+    </div>
+  </div>
 
   <!-- 非表示のファイル選択 -->
   <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
@@ -1490,17 +1842,22 @@
 
 <!-- CTA -->
 <section class="cta-section">
+  <!-- React Bits: Aurora（背景のゆらめき） -->
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
   <div class="reveal">
-    <span class="section-label">COLLECTION</span>
-    <h2 class="section-title">もふもふを<br>コレクションしよう</h2>
+    <span class="section-label shiny-text">COLLECTION</span>
+    <h2 class="section-title gradient-text">もふもふを<br>コレクションしよう</h2>
     <p class="cta-sub">＋ボタンから写真をアップロードするだけ。<br>あなたのもふもふコレクションが殿堂入り🏛️</p>
-    <a href="#gallery" class="cta-btn">ギャラリーへ ✦</a>
+    <span class="magnet"><a href="#gallery" class="cta-btn star-border">ギャラリーへ ✦</a></span>
   </div>
 </section>
 
 <footer>
   © 2026 もふもふの殿堂 — The Fluffy Hall. All rights reserved. 🏛️
 </footer>
+
+<!-- React Bits: Click Spark（クリック火花） -->
+<canvas id="sparkCanvas" aria-hidden="true"></canvas>
 
 <script>
 /* ============================================================
@@ -1531,7 +1888,7 @@ const firebaseConfig = {
    }
 */
 
-const MAX_IMAGES = 200;
+const MAX_IMAGES = 500;
 const COLLECTION  = "gallery";
 
 /* ============================================================
@@ -1545,24 +1902,36 @@ const revealObs = new IntersectionObserver((entries) => {
 }, { threshold: 0.12 });
 reveals.forEach(el => revealObs.observe(el));
 
-// ギャラリーカードを右→左に流して 1,2,3 順に定位置へ（スクロールに完全同期）
+// ギャラリーカードを「奥・下から 3D で起き上がって着地」させる（スクロールに完全同期）
+// React Bits の Animated Content / Flying Posters 風。ぼかし→ピント、軽いオーバーシュート付き。
 // 写真が増えるほど、その分スクロール量＝演出が続く。着地後だけクリック有効。
 const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+const easeOutBack  = t => { const c = 1.35; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
 function scrubGalleryCards() {
   const grid = document.getElementById('galleryGrid');
   if (!grid) return;
   const cards = grid.querySelectorAll('.gallery-card');
   const vh = window.innerHeight;
-  const start = vh * 0.96;  // カード上端がここに来たら出現開始
-  const end   = vh * 0.50;  // ここまで上がったら着地(=1)
+  const start = vh * 1.00;  // カード上端がここに来たら出現開始
+  const end   = vh * 0.52;  // ここまで上がったら着地(=1)
   cards.forEach((card, i) => {
     const top = card.getBoundingClientRect().top;
     let p = (start - top) / (start - end);
-    p -= (i % 3) * 0.14;            // 同じ行でも 左→右(1,2,3) の順に着地させる
+    p -= (i % 3) * 0.12;            // 同じ行でも 左→右(1,2,3) の順に着地させる
     p = Math.max(0, Math.min(1, p));
+    if (card._p === p) return;      // 変化なし（着地済み等）は触らない：200枚でも軽く
+    card._p = p;
     const e = easeOutCubic(p);
-    card.style.opacity = e.toFixed(3);
-    card.style.transform = `translateX(${((1 - e) * 90).toFixed(1)}px) scale(${(0.95 + e * 0.05).toFixed(3)})`;
+    const b = easeOutBack(p);
+    const ty = (1 - e) * 150;        // 下から
+    const tz = -(1 - e) * 360;       // 奥から
+    const rx = (1 - b) * -58;        // 倒れた状態から起き上がる（少し行き過ぎて戻る）
+    const sc = 0.82 + e * 0.18;
+    card.style.opacity = Math.min(1, p * 1.7).toFixed(3);
+    card.style.transform = p >= 1
+      ? ''
+      : `translate3d(0,${ty.toFixed(1)}px,${tz.toFixed(1)}px) rotateX(${rx.toFixed(2)}deg) scale(${sc.toFixed(3)})`;
+    card.style.filter = p >= 1 ? '' : `blur(${((1 - e) * 8).toFixed(1)}px)`;
     card.style.pointerEvents = p >= 0.98 ? 'auto' : 'none'; // 着地後にクリック可
   });
 }
@@ -1756,10 +2125,8 @@ async function loadGallery() {
    グリッド描画
    ============================================================ */
 function renderGallery() {
-  // 件数表示
-  galleryCount.textContent = images.length > 0
-    ? `${images.length} 作品を収蔵`
-    : "— 作品";
+  // 件数表示（React Bits: Count Up — 画面に入ったら 0 から数え上げる）
+  setGalleryCount(images.length);
 
   // 既存アイテムを削除
   galleryGrid.querySelectorAll('.gallery-card').forEach(el => el.remove());
@@ -1791,7 +2158,10 @@ function renderGallery() {
     galleryGrid.appendChild(card);
   });
 
-  // 生成直後に一度スクラブを反映（画面外カードは右に隠れ、画面内は着地）
+  // 最新収蔵の 3D リング（React Bits: Rolling Gallery）
+  renderRollingGallery();
+
+  // 生成直後に一度スクラブを反映（画面外カードは奥に隠れ、画面内は着地）
   scrubGalleryCards();
 }
 
@@ -2082,6 +2452,322 @@ document.getElementById('lbDelete').addEventListener('click', async () => {
     alert('削除に失敗しました: ' + err.message);
   }
 });
+
+/* ============================================================
+   React Bits 移植（vanilla JS）
+   Blur Text / Particles / Scroll Velocity / Spotlight+Tilt /
+   Magnet / Click Spark / Count Up
+   ============================================================ */
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const FINE_POINTER   = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+/* ── Blur Text：テキストノードを1文字ずつ span 化して段階的に表示 ── */
+(function blurText() {
+  document.querySelectorAll('[data-blur-text]').forEach(el => {
+    const base = parseFloat(el.dataset.blurDelay || '0.15');
+    const step = parseFloat(el.dataset.blurStep  || '0.055');
+    let i = 0;
+    const walk = (node) => {
+      Array.from(node.childNodes).forEach(child => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          const frag = document.createDocumentFragment();
+          for (const ch of child.textContent) {
+            if (ch === ' ') { frag.appendChild(document.createTextNode(' ')); continue; }
+            const s = document.createElement('span');
+            s.className = 'bt-ch';
+            s.textContent = ch;
+            s.style.setProperty('--d', (base + step * i++).toFixed(3) + 's');
+            frag.appendChild(s);
+          }
+          node.replaceChild(frag, child);
+        } else if (child.nodeType === Node.ELEMENT_NODE && child.tagName !== 'BR') {
+          walk(child);
+        }
+      });
+    };
+    walk(el);
+  });
+})();
+
+/* ── Particles：ヒーローに舞う金の粒子 ── */
+(function particles() {
+  const cv = document.getElementById('heroParticles');
+  const hero = document.querySelector('.hero');
+  if (!cv || !hero || REDUCED_MOTION) return;
+  const ctx = cv.getContext('2d');
+  const COUNT = window.innerWidth < 700 ? 28 : 70;
+  let W = 0, H = 0, dpr = 1, pts = [], running = false, raf = 0;
+  let mx = 0.5, my = 0.5;               // カーソル位置（パララックス用）
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function spawn(p) {
+    p.x = Math.random() * W;
+    p.y = Math.random() * H;
+    p.r = 0.6 + Math.random() * 1.8;
+    p.vx = (Math.random() - 0.5) * 0.12;
+    p.vy = -(0.08 + Math.random() * 0.22);
+    p.ph = Math.random() * Math.PI * 2;
+    p.tw = 0.6 + Math.random() * 1.2;   // twinkle speed
+    p.z  = 0.3 + Math.random() * 0.7;   // 奥行き（パララックス量）
+    return p;
+  }
+  function init() { pts = Array.from({ length: COUNT }, () => spawn({})); }
+  function frame(t) {
+    if (!running) return;
+    ctx.clearRect(0, 0, W, H);
+    const px = (mx - 0.5) * 24, py = (my - 0.5) * 16;
+    for (const p of pts) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.y < -6 || p.x < -6 || p.x > W + 6) { spawn(p); p.y = H + 4; }
+      const a = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(t * 0.001 * p.tw + p.ph));
+      const x = p.x + px * p.z, y = p.y + py * p.z;
+      ctx.beginPath();
+      ctx.arc(x, y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,222,110,${a.toFixed(3)})`;
+      ctx.shadowColor = 'rgba(255,215,0,0.9)';
+      ctx.shadowBlur = 6 + p.r * 3;
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    raf = requestAnimationFrame(frame);
+  }
+  function start() { if (!running) { running = true; raf = requestAnimationFrame(frame); } }
+  function stop()  { running = false; cancelAnimationFrame(raf); }
+
+  resize(); init(); start();
+  window.addEventListener('resize', () => { resize(); init(); });
+  // ヒーローが画面外・タブ非表示のときは止めて省電力
+  new IntersectionObserver(es => es[0].isIntersecting ? start() : stop(), { threshold: 0 }).observe(hero);
+  document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
+  if (FINE_POINTER) {
+    window.addEventListener('mousemove', e => { mx = e.clientX / window.innerWidth; my = e.clientY / window.innerHeight; }, { passive: true });
+  }
+})();
+
+/* ── Scroll Velocity：基本速度＋スクロール速度でリボンが加速 ── */
+(function scrollVelocity() {
+  const strip = document.getElementById('velocityStrip');
+  if (!strip || REDUCED_MOTION) return;
+  const rows = Array.from(strip.querySelectorAll('.velocity-row')).map(row => {
+    const text = row.dataset.text || '';
+    const dir  = parseFloat(row.dataset.dir || '1');
+    row.innerHTML = '';
+    const probe = document.createElement('span'); probe.textContent = text; row.appendChild(probe);
+    let unitW = probe.getBoundingClientRect().width || 300;
+    const copies = Math.ceil((window.innerWidth * 2) / unitW) + 2;
+    for (let i = 1; i < copies; i++) { const s = document.createElement('span'); s.textContent = text; row.appendChild(s); }
+    return { row, dir, unitW, pos: 0 };
+  });
+  let lastY = window.scrollY, vel = 0, lastT = performance.now(), visible = true;
+  const BASE = 60;      // px/秒
+  const BOOST = 4.5;    // スクロール速度(px/秒)に対する倍率
+  function tick(now) {
+    const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+    const y = window.scrollY;
+    const sv = dt > 0 ? (y - lastY) / dt : 0;   // px/秒
+    lastY = y;
+    vel += (sv - vel) * 0.12;                   // なめらかに追従
+    if (visible) {
+      for (const r of rows) {
+        const speed = (BASE + Math.abs(vel) * BOOST) * (vel < 0 ? -r.dir : r.dir);
+        r.pos -= speed * dt;
+        // 1ユニット幅で折り返し（-unitW..0 の範囲に保つ）
+        r.pos = ((r.pos % r.unitW) + r.unitW) % r.unitW - r.unitW;
+        r.row.style.transform = `translate3d(${r.pos.toFixed(2)}px,0,0)`;
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+  new IntersectionObserver(es => { visible = es[0].isIntersecting; }, { rootMargin: '200px 0px' }).observe(strip);
+  window.addEventListener('resize', () => {
+    rows.forEach(r => { const s = r.row.firstElementChild; if (s) r.unitW = s.getBoundingClientRect().width || r.unitW; });
+  });
+  requestAnimationFrame(tick);
+})();
+
+/* ── Spotlight Card + Tilted Card：額縁がカーソル方向に傾き、光点が追従 ── */
+(function spotlightTilt() {
+  if (!FINE_POINTER || REDUCED_MOTION) return;
+  const MAX = 9; // 最大傾き(deg)
+  galleryGrid.addEventListener('mousemove', e => {
+    const item = e.target.closest('.gallery-item');
+    if (!item) return;
+    const r = item.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top)  / r.height;
+    item.style.setProperty('--mx', (x * 100).toFixed(1) + '%');
+    item.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+    item.classList.add('is-tilt');
+    item.style.transform =
+      `perspective(700px) rotateX(${(-(y - 0.5) * MAX).toFixed(2)}deg) rotateY(${((x - 0.5) * MAX).toFixed(2)}deg) translateY(-10px) scale(1.03)`;
+  });
+  galleryGrid.addEventListener('mouseout', e => {
+    const item = e.target.closest('.gallery-item');
+    if (!item || item.contains(e.relatedTarget)) return;
+    item.classList.remove('is-tilt');
+    item.style.transform = '';
+  });
+})();
+
+/* ── Magnet：近づいたカーソルにボタンが吸い寄せられる ── */
+(function magnet() {
+  if (!FINE_POINTER || REDUCED_MOTION) return;
+  const els = Array.from(document.querySelectorAll('.magnet'));
+  if (!els.length) return;
+  const PAD = 70, STRENGTH = 0.35;
+  let tick = false;
+  window.addEventListener('mousemove', e => {
+    if (tick) return; tick = true;
+    requestAnimationFrame(() => {
+      tick = false;
+      for (const el of els) {
+        const r = el.getBoundingClientRect();
+        if (!r.width) continue;
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        const dx = e.clientX - cx, dy = e.clientY - cy;
+        if (Math.abs(dx) < r.width / 2 + PAD && Math.abs(dy) < r.height / 2 + PAD) {
+          el.classList.add('is-near');
+          el.style.transform = `translate3d(${(dx * STRENGTH).toFixed(1)}px, ${(dy * STRENGTH).toFixed(1)}px, 0)`;
+        } else if (el.classList.contains('is-near')) {
+          el.classList.remove('is-near');
+          el.style.transform = '';
+        }
+      }
+    });
+  }, { passive: true });
+})();
+
+/* ── Click Spark：クリック位置から金の火花が放射 ── */
+(function clickSpark() {
+  const cv = document.getElementById('sparkCanvas');
+  if (!cv || REDUCED_MOTION) return;
+  const ctx = cv.getContext('2d');
+  const sparks = [];
+  const DUR = 420, N = 9, SIZE = 12, RADIUS = 22;
+  let raf = 0, dpr = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(window.innerWidth * dpr); cv.height = Math.round(window.innerHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize(); window.addEventListener('resize', resize);
+  const easeOut = t => t * (2 - t);
+  function draw(now) {
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      const t = (now - s.t0) / DUR;
+      if (t >= 1) { sparks.splice(i, 1); continue; }
+      const e = easeOut(t);
+      const dist = e * RADIUS * 1.4, len = SIZE * (1 - e);
+      ctx.strokeStyle = `rgba(255,${Math.round(215 - 80 * e)},${Math.round(60 * (1 - e))},${(1 - e).toFixed(3)})`;
+      ctx.lineWidth = 2; ctx.lineCap = 'round';
+      for (let k = 0; k < N; k++) {
+        const a = (Math.PI * 2 * k) / N + s.rot;
+        const x1 = s.x + Math.cos(a) * dist,          y1 = s.y + Math.sin(a) * dist;
+        const x2 = s.x + Math.cos(a) * (dist + len),  y2 = s.y + Math.sin(a) * (dist + len);
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+    }
+    if (sparks.length) raf = requestAnimationFrame(draw);
+    else { raf = 0; ctx.clearRect(0, 0, window.innerWidth, window.innerHeight); }
+  }
+  window.addEventListener('pointerdown', e => {
+    sparks.push({ x: e.clientX, y: e.clientY, t0: performance.now(), rot: Math.random() * Math.PI });
+    if (!raf) raf = requestAnimationFrame(draw);
+  }, { passive: true });
+})();
+
+/* ── Rolling Gallery：最新12枚を 3D の輪にして自動回転。ドラッグで回せてクリックで拡大 ── */
+const _roll = { N: 0, R: 0, angle: 0, vel: 0, dragging: false, lastX: 0, dragDist: 0, visible: false, started: false };
+const rollingWrap  = document.getElementById('rollingWrap');
+const rollingStage = document.getElementById('rollingStage');
+const rollingRing  = document.getElementById('rollingRing');
+function renderRollingGallery() {
+  if (!rollingWrap || !rollingStage || !rollingRing) return;
+  const picks = images.slice(0, Math.min(12, images.length));
+  if (picks.length < 3) { rollingWrap.style.display = 'none'; return; }
+  rollingWrap.style.display = '';
+  rollingRing.innerHTML = '';
+  const fw = parseFloat(getComputedStyle(rollingStage).getPropertyValue('--fw')) || 180;
+  _roll.N = picks.length;
+  _roll.R = (fw / 2) / Math.tan(Math.PI / _roll.N) * 1.22;   // 面同士が少し離れる半径
+  picks.forEach((img, i) => {
+    const f = document.createElement('div');
+    f.className = 'rolling-face';
+    f.style.transform = `rotateY(${(i * 360 / _roll.N).toFixed(3)}deg) translateZ(${_roll.R.toFixed(1)}px)`;
+    f.innerHTML = `<img src="${img.thumbUrl || img.url}" alt="" loading="lazy" draggable="false">`;
+    f.addEventListener('click', () => { if (_roll.dragDist < 6) openLightbox(i); });
+    rollingRing.appendChild(f);
+  });
+  rollingRing.style.transform = `translateZ(${(-_roll.R).toFixed(1)}px) rotateY(${_roll.angle.toFixed(2)}deg)`;
+  if (!_roll.started) startRolling();
+}
+function startRolling() {
+  _roll.started = true;
+  const AUTO = REDUCED_MOTION ? 0 : 0.10;   // deg/frame ≒ 6deg/秒
+  function tick() {
+    if (_roll.visible && _roll.N) {
+      if (!_roll.dragging) { _roll.angle += AUTO + _roll.vel; _roll.vel *= 0.94; }
+      rollingRing.style.transform = `translateZ(${(-_roll.R).toFixed(1)}px) rotateY(${_roll.angle.toFixed(2)}deg)`;
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+  new IntersectionObserver(es => { _roll.visible = es[0].isIntersecting; }, { rootMargin: '100px 0px' }).observe(rollingStage);
+
+  rollingStage.addEventListener('pointerdown', e => {
+    _roll.dragging = true; _roll.lastX = e.clientX; _roll.dragDist = 0; _roll.vel = 0;
+    rollingStage.classList.add('dragging');
+    rollingStage.setPointerCapture(e.pointerId);
+  });
+  rollingStage.addEventListener('pointermove', e => {
+    if (!_roll.dragging) return;
+    const dx = e.clientX - _roll.lastX;
+    _roll.lastX = e.clientX;
+    _roll.angle += dx * 0.28;
+    _roll.vel = dx * 0.28;
+    _roll.dragDist += Math.abs(dx);
+  });
+  const endDrag = () => { _roll.dragging = false; rollingStage.classList.remove('dragging'); };
+  rollingStage.addEventListener('pointerup', endDrag);
+  rollingStage.addEventListener('pointercancel', endDrag);
+  window.addEventListener('resize', () => { if (images.length) renderRollingGallery(); });
+}
+
+/* ── Count Up：収蔵数を画面に入ったタイミングで数え上げ ── */
+let _countTarget = 0, _countShown = 0, _countSeen = false, _countRaf = 0;
+function setGalleryCount(n) {
+  _countTarget = n;
+  if (n === 0) { galleryCount.textContent = '— 作品'; _countShown = 0; return; }
+  if (_countSeen && !REDUCED_MOTION) runCountUp();
+  else if (!_countSeen && !REDUCED_MOTION) galleryCount.textContent = '0 作品を収蔵';
+  else { galleryCount.textContent = `${n} 作品を収蔵`; _countShown = n; }
+}
+function runCountUp() {
+  cancelAnimationFrame(_countRaf);
+  const from = _countShown, to = _countTarget, t0 = performance.now();
+  const dur = Math.min(1600, 500 + Math.abs(to - from) * 12);
+  const step = now => {
+    const p = Math.min(1, (now - t0) / dur);
+    const v = Math.round(from + (to - from) * easeOutCubic(p));
+    galleryCount.textContent = `${v} 作品を収蔵`;
+    _countShown = v;
+    if (p < 1) _countRaf = requestAnimationFrame(step);
+  };
+  _countRaf = requestAnimationFrame(step);
+}
+new IntersectionObserver((es, obs) => {
+  if (!es[0].isIntersecting) return;
+  _countSeen = true;
+  if (_countTarget > 0) runCountUp();
+  obs.disconnect();
+}, { threshold: 0.4 }).observe(galleryCount);
 
 /* ============================================================
    初期化（匿名認証 → ギャラリー読み込み）
