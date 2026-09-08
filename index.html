@@ -1479,6 +1479,23 @@
     transform-origin: 50% 100%;
     backface-visibility: hidden;
   }
+  /* 対応ブラウザ（Chrome/Android・iOS 26 以降）ではスクロール連動アニメを CSS だけで行う。
+     JS を介さず合成スレッドで動くので、スマホでも遅延ゼロ・カクつきなしでスクロールに追従する。 */
+  @supports (animation-timeline: view()) {
+    .gallery-card.sda {
+      opacity: 1;
+      animation: cardRise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 100%;   /* 画面下端に入り始め→全体が入った時点で着地 */
+    }
+    .gallery-card.sda:nth-child(3n+2) { animation-range: entry 12% entry 100%; }  /* 1,2,3 の順に着地 */
+    .gallery-card.sda:nth-child(3n)   { animation-range: entry 24% entry 100%; }
+    @keyframes cardRise {
+      0%   { opacity: 0.15; transform: translate3d(0, 110px, -300px) rotateX(-50deg) scale(0.85); }
+      70%  { opacity: 1;    transform: translate3d(0, -6px, 0)       rotateX(4deg)   scale(1.01); }
+      100% { opacity: 1;    transform: none; }
+    }
+  }
 
   /* ── Rolling Gallery：最新収蔵を 3D の輪にして回す（ドラッグで回転） ── */
   .rolling-wrap { margin: 4px 0 44px; }
@@ -1923,34 +1940,40 @@ reveals.forEach(el => revealObs.observe(el));
 // 写真が増えるほど、その分スクロール量＝演出が続く。着地後だけクリック有効。
 const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
 const easeOutBack  = t => { const c = 1.35; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+// CSS スクロール連動アニメ（animation-timeline: view()）が使えるなら JS 側の演出は使わない
+const SDA = !!(window.CSS && CSS.supports && CSS.supports('animation-timeline: view()'));
 function scrubGalleryCards() {
   const grid = document.getElementById('galleryGrid');
   if (!grid) return;
-  const cards = grid.querySelectorAll('.gallery-card');
   const vh = window.innerHeight;
-  const start = vh * 1.00;  // カード上端がここに来たら出現開始
-  const end   = vh * 0.52;  // ここまで上がったら着地(=1)
-  // 先に全カードの位置を読み切ってから書き込む（読み書き交互だと200回レイアウト計算が走りカクつく）
-  const tops = Array.from(cards, c => c.getBoundingClientRect().top);
   // 収蔵数の Count Up：一気にスクロールして通過した場合も取りこぼさない
   if (typeof _countSeen !== 'undefined' && !_countSeen && galleryCount.getBoundingClientRect().top < vh * 0.9) {
     _countSeen = true;
     if (_countTarget > 0) runCountUp();
   }
+  if (SDA) return;                 // CSS 側（.gallery-card.sda）が担当
+  const cards = grid.querySelectorAll('.gallery-card');
+  // 画面下端に入った瞬間に出現開始し、画面下 1/4〜1/5 の位置で着地させる。
+  // （以前は画面中央で着地させていたため、画面下半分が「まだ見えないカード」で埋まり、
+  //   通り過ぎてから振り返らないと画像が見えない状態になっていた）
+  const start = vh * 1.02;                 // カード上端がここに来たら出現開始
+  const end   = vh * (LITE ? 0.82 : 0.74); // ここまで上がったら着地(=1)
+  // 先に全カードの位置を読み切ってから書き込む（読み書き交互だと200回レイアウト計算が走りカクつく）
+  const tops = Array.from(cards, c => c.getBoundingClientRect().top);
   cards.forEach((card, i) => {
     const top = tops[i];
     let p = (start - top) / (start - end);
-    p -= (i % 3) * 0.12;            // 同じ行でも 左→右(1,2,3) の順に着地させる
+    p -= (i % 3) * 0.07;            // 同じ行でも 左→右(1,2,3) の順に着地させる（ズレは小さめ）
     p = Math.max(0, Math.min(1, p));
     if (card._p === p) return;      // 変化なし（着地済み等）は触らない：200枚でも軽く
     card._p = p;
     const e = easeOutCubic(p);
     const b = easeOutBack(p);
-    const ty = (1 - e) * 150;        // 下から
-    const tz = -(1 - e) * 360;       // 奥から
-    const rx = (1 - b) * -58;        // 倒れた状態から起き上がる（少し行き過ぎて戻る）
-    const sc = 0.82 + e * 0.18;
-    card.style.opacity = Math.min(1, p * 1.7).toFixed(3);
+    const ty = (1 - e) * 110;        // 下から
+    const tz = -(1 - e) * 300;       // 奥から
+    const rx = (1 - b) * -50;        // 倒れた状態から起き上がる（少し行き過ぎて戻る）
+    const sc = 0.85 + e * 0.15;
+    card.style.opacity = Math.min(1, 0.15 + p * 2.2).toFixed(3); // 出現直後から見える
     card.style.transform = p >= 1
       ? ''
       : `translate3d(0,${ty.toFixed(1)}px,${tz.toFixed(1)}px) rotateX(${rx.toFixed(2)}deg) scale(${sc.toFixed(3)})`;
@@ -2169,7 +2192,7 @@ function renderGallery() {
   images.forEach((img, i) => {
     // カード全体
     const card = document.createElement('div');
-    card.className = 'gallery-card';
+    card.className = 'gallery-card' + (SDA ? ' sda' : '');
 
     // 画像フレーム（金縁）
     const frame = document.createElement('div');
