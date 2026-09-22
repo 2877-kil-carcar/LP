@@ -4,11 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>もふもふの殿堂 | The Fluffy Hall</title>
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=Kaisei+Decol:wght@400;700&display=swap" rel="stylesheet">
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<!-- フォント CSS（144KB）は描画をブロックさせない：先に接続だけ張り、読み込み後に有効化。文字はまず代替フォントで即表示 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://i.ibb.co">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=Kaisei+Decol:wght@400;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;500;700&family=Kaisei+Decol:wght@400;700&display=swap" rel="stylesheet"></noscript>
+<!-- Firebase（150KB）は defer で描画を止めずに読み、DOMContentLoaded 後に初期化する -->
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1736,7 +1743,35 @@
     .aurora i { animation: none; }
     .aurora i:nth-child(3) { display: none; }
     .velocity-strip { -webkit-mask-image: none; mask-image: none; }
+    #heroParticles { display: none; }             /* 粒子の描画ループはスマホでは動かさない */
+    /* Blur Text：filter: blur のアニメは文字ごとにGPUレイヤーを作るので、スマホは不透明度と位置だけ */
+    .bt-ch { filter: none; will-change: opacity, transform; animation-name: btInLite; }
+    /* ギャラリー：3D の文脈・レイヤー化をやめ、画面外カードは描画も画像読込もしない */
+    .gallery-grid { perspective: none; }
+    .gallery-card {
+      backface-visibility: visible;
+      content-visibility: auto;
+      contain-intrinsic-size: auto 110px 160px;
+    }
   }
+  @keyframes btInLite {
+    0%   { opacity: 0; transform: translateY(14px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  /* ギャラリー末尾の「読み込み中」表示（次のページを追加している間だけ見える） */
+  .gallery-loader {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 26px 0 10px;
+    color: rgba(212,175,55,0.75);
+    font-size: 13px;
+    letter-spacing: 1px;
+    min-height: 60px;
+  }
+  .gallery-loader .progress-spinner { border-color: rgba(212,175,55,0.18); border-top-color: #D4AF37; }
 
   /* ── 動きを減らす設定の人には演出をオフ ── */
   @media (prefers-reduced-motion: reduce) {
@@ -2044,13 +2079,14 @@ const risePanel = document.getElementById('risePanel');
 
   // 同時 3 本の制限付きで順番に読み込む
   let nextIdx = 0, inFlight = 0;
-  const CONCURRENCY = 3;
+  const CONCURRENCY = LITE ? 2 : 3;
   function pump() {
     while (inFlight < CONCURRENCY && nextIdx < FRAME_COUNT) {
       const k = nextIdx++;
       inFlight++;
       const img = new Image();
       img.decoding = 'async';
+      if (k > 0) img.fetchPriority = 'low';   // 先頭以外は写真・Firestore より後回し
       img.onload = () => {
         const done = (src) => {
           frames[k] = src; loaded++;
@@ -2189,11 +2225,13 @@ const risePanel = document.getElementById('risePanel');
    Firebase 初期化
    ============================================================ */
 let db;
-try {
-  firebase.initializeApp(firebaseConfig);
-  db = firebase.firestore();
-} catch (e) {
-  console.warn("Firebase未設定:", e.message);
+function initFirebase() {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  } catch (e) {
+    console.warn("Firebase未設定:", e.message);
+  }
 }
 
 /* ============================================================
@@ -2242,11 +2280,11 @@ async function loadGallery() {
    ============================================================ */
 const PAGE_SIZE = LITE ? 18 : 30;   // 1 回に追加する枚数（スマホ 3 列 × 6 行）
 let _renderedCount = 0;
-let _sentinel = null, _sentinelObs = null;
+let _sentinel = null, _sentinelObs = null, _loading = false;
 
 function buildCard(img, i) {
   const card = document.createElement('div');
-  card.className = 'gallery-card' + (SDA ? ' sda' : '');
+  card.className = 'gallery-card' + (SDA && !LITE ? ' sda' : '');   // スマホは 200 枚分の 3D レイヤーを作らない
 
   // 画像フレーム（金縁）
   const frame = document.createElement('div');
@@ -2264,35 +2302,54 @@ function buildCard(img, i) {
   return card;
 }
 
+/* 「読み込み中…」の行がグリッド末尾にあり、そこまでスクロールすると次の 1 ページを追加する。
+   高速スクロール対策：1 回の追加後は、その画像が読み終わる（最大 900ms）まで次を追加しない。
+   一気に 212 枚が生成・デコードされてメモリが跳ねるのを防ぐ。 */
 function appendCards() {
+  if (_loading) return;
   const end = Math.min(images.length, _renderedCount + PAGE_SIZE);
-  if (_renderedCount >= end) return;
+  if (_renderedCount >= end) { if (_sentinel) _sentinel.style.display = 'none'; return; }
+  _loading = true;
   const frag = document.createDocumentFragment();
-  for (let i = _renderedCount; i < end; i++) frag.appendChild(buildCard(images[i], i));
+  const imgs = [];
+  for (let i = _renderedCount; i < end; i++) {
+    const card = buildCard(images[i], i);
+    imgs.push(card.querySelector('img'));
+    frag.appendChild(card);
+  }
   _renderedCount = end;
-  // 番兵（sentinel）は常にグリッド末尾に置く
+  // 読み込み中の行は常にグリッド末尾に置く
   if (_sentinel && _sentinel.parentNode === galleryGrid) galleryGrid.insertBefore(frag, _sentinel);
   else galleryGrid.appendChild(frag);
-  if (_renderedCount >= images.length && _sentinel) _sentinel.style.display = 'none';
-  else if (_sentinel) _sentinel.style.display = '';
+  if (_sentinel) _sentinel.style.display = _renderedCount >= images.length ? 'none' : '';
   scrubGalleryCards();   // 追加直後の位置を反映（PC の 3D 演出用）
-  // 追加してもまだ番兵が先読み範囲内なら続けて追加（IntersectionObserver は状態が変わらないと再発火しない）
-  if (_renderedCount < images.length && _sentinel) {
-    requestAnimationFrame(() => {
-      if (_renderedCount < images.length && _sentinel.getBoundingClientRect().top < window.innerHeight * 2.5) appendCards();
-    });
-  }
+
+  // このページの画像が読み終わる（またはタイムアウト）まで次ページを待つ
+  const settled = new Promise(res => {
+    let left = imgs.length;
+    const done = () => { if (--left <= 0) res(); };
+    imgs.forEach(im => (im.complete ? done() : (im.onload = im.onerror = done)));
+    setTimeout(res, 900);
+  });
+  settled.then(() => {
+    _loading = false;
+    // まだ「読み込み中」が画面（＋少し先）に見えていれば続けて次ページ
+    if (_renderedCount < images.length && _sentinel &&
+        _sentinel.getBoundingClientRect().top < window.innerHeight * (LITE ? 1.4 : 2.5)) {
+      appendCards();
+    }
+  });
 }
 
 function ensureSentinel() {
   if (!_sentinel) {
     _sentinel = document.createElement('div');
-    _sentinel.className = 'gallery-sentinel';
-    _sentinel.style.cssText = 'grid-column:1/-1;height:1px;';
-    // 画面下端から 1.5 画面分手前に来たら次ページを追加
+    _sentinel.className = 'gallery-loader';
+    _sentinel.innerHTML = '<div class="progress-spinner"></div><span>読み込み中…</span>';
+    // スマホ：画面下 0.4 画面分手前で発火（引っ張ると読み込まれる感覚）。PC は先読み気味。
     _sentinelObs = new IntersectionObserver(es => {
       if (es[0].isIntersecting) appendCards();
-    }, { rootMargin: '150% 0px' });
+    }, { rootMargin: LITE ? '40% 0px' : '150% 0px' });
     _sentinelObs.observe(_sentinel);
   }
   galleryGrid.appendChild(_sentinel);   // 末尾へ移動（再描画時も）
@@ -2314,6 +2371,7 @@ function renderGallery() {
 
   // 最初は 1 ページ分だけ作り、下端に近づくたびに追加する（212 枚を一度に作らない）
   _renderedCount = 0;
+  _loading = false;
   appendCards();
   ensureSentinel();
 
@@ -2702,7 +2760,7 @@ const FINE_POINTER   = window.matchMedia('(hover: hover) and (pointer: fine)').m
 (function particles() {
   const cv = document.getElementById('heroParticles');
   const hero = document.querySelector('.hero');
-  if (!cv || !hero || REDUCED_MOTION) return;
+  if (!cv || !hero || REDUCED_MOTION || LITE) return;   // スマホは常時 60fps の描画ループを持たない
   const ctx = cv.getContext('2d');
   const COUNT = LITE ? 18 : 70;
   let W = 0, H = 0, dpr = 1, pts = [], running = false, raf = 0;
@@ -2778,31 +2836,30 @@ const FINE_POINTER   = window.matchMedia('(hover: hover) and (pointer: fine)').m
     for (let i = 1; i < copies; i++) { const s = document.createElement('span'); s.textContent = text; row.appendChild(s); }
     return { row, dir, unitW, pos: 0 };
   });
-  let lastY = window.scrollY, vel = 0, lastT = performance.now(), visible = true;
+  let lastY = window.scrollY, vel = 0, lastT = performance.now(), visible = false, running = false;
   const BASE = 60;      // px/秒
   const BOOST = 4.5;    // スクロール速度(px/秒)に対する倍率
   function tick(now) {
+    if (!visible) { running = false; return; }   // 画面外ではループ自体を止める
     const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
     const y = window.scrollY;
     const sv = dt > 0 ? (y - lastY) / dt : 0;   // px/秒
     lastY = y;
     vel += (sv - vel) * 0.12;                   // なめらかに追従
-    if (visible) {
-      for (const r of rows) {
-        const speed = (BASE + Math.abs(vel) * BOOST) * (vel < 0 ? -r.dir : r.dir);
-        r.pos -= speed * dt;
-        // 1ユニット幅で折り返し（-unitW..0 の範囲に保つ）
-        r.pos = ((r.pos % r.unitW) + r.unitW) % r.unitW - r.unitW;
-        r.row.style.transform = `translate3d(${r.pos.toFixed(2)}px,0,0)`;
-      }
+    for (const r of rows) {
+      const speed = (BASE + Math.abs(vel) * BOOST) * (vel < 0 ? -r.dir : r.dir);
+      r.pos -= speed * dt;
+      // 1ユニット幅で折り返し（-unitW..0 の範囲に保つ）
+      r.pos = ((r.pos % r.unitW) + r.unitW) % r.unitW - r.unitW;
+      r.row.style.transform = `translate3d(${r.pos.toFixed(2)}px,0,0)`;
     }
     requestAnimationFrame(tick);
   }
-  new IntersectionObserver(es => { visible = es[0].isIntersecting; }, { rootMargin: '200px 0px' }).observe(strip);
+  function start() { if (!running) { running = true; lastT = performance.now(); lastY = window.scrollY; requestAnimationFrame(tick); } }
+  new IntersectionObserver(es => { visible = es[0].isIntersecting; if (visible) start(); }, { rootMargin: '200px 0px' }).observe(strip);
   window.addEventListener('resize', () => {
     rows.forEach(r => { const s = r.row.firstElementChild; if (s) r.unitW = s.getBoundingClientRect().width || r.unitW; });
   });
-  requestAnimationFrame(tick);
 })();
 
 /* ── Spotlight Card + Tilted Card：額縁がカーソル方向に傾き、光点が追従 ── */
@@ -2926,15 +2983,17 @@ function renderRollingGallery() {
 function startRolling() {
   _roll.started = true;
   const AUTO = REDUCED_MOTION ? 0 : 0.10;   // deg/frame ≒ 6deg/秒
+  let running = false;
   function tick() {
-    if (_roll.visible && _roll.N) {
+    if (!_roll.visible) { running = false; return; }   // 画面外ではループ自体を止める
+    if (_roll.N) {
       if (!_roll.dragging) { _roll.angle += AUTO + _roll.vel; _roll.vel *= 0.94; }
       rollingRing.style.transform = `translateZ(${(-_roll.R).toFixed(1)}px) rotateY(${_roll.angle.toFixed(2)}deg)`;
     }
     requestAnimationFrame(tick);
   }
-  requestAnimationFrame(tick);
-  new IntersectionObserver(es => { _roll.visible = es[0].isIntersecting; }, { rootMargin: '100px 0px' }).observe(rollingStage);
+  function start() { if (!running) { running = true; requestAnimationFrame(tick); } }
+  new IntersectionObserver(es => { _roll.visible = es[0].isIntersecting; if (_roll.visible) start(); }, { rootMargin: '100px 0px' }).observe(rollingStage);
 
   rollingStage.addEventListener('pointerdown', e => {
     _roll.dragging = true; _roll.lastX = e.clientX; _roll.dragDist = 0; _roll.vel = 0;
@@ -2987,17 +3046,22 @@ new IntersectionObserver((es, obs) => {
 /* ============================================================
    初期化（匿名認証 → ギャラリー読み込み）
    ============================================================ */
-if (db) {
-  firebase.auth().signInAnonymously()
-    .then(() => loadGallery())
-    .catch(err => {
-      console.error("匿名認証エラー:", err);
-      // 認証失敗でも表示だけ試みる
-      loadGallery();
-    });
-} else {
-  loadGallery();
+function boot() {
+  initFirebase();   // defer で読んだ Firebase SDK はこの時点（DOMContentLoaded）で揃っている
+  if (db) {
+    firebase.auth().signInAnonymously()
+      .then(() => loadGallery())
+      .catch(err => {
+        console.error("匿名認証エラー:", err);
+        // 認証失敗でも表示だけ試みる
+        loadGallery();
+      });
+  } else {
+    loadGallery();
+  }
 }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
 </script>
 </body>
 </html>
