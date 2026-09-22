@@ -1960,7 +1960,7 @@ function scrubGalleryCards() {
     _countSeen = true;
     if (_countTarget > 0) runCountUp();
   }
-  if (SDA) return;                 // CSS 側（.gallery-card.sda）が担当
+  if (SDA || LITE) return;         // CSS 側（.gallery-card.sda）が担当。スマホは 200 枚の毎スクロール変形をやめる
   const cards = grid.querySelectorAll('.gallery-card');
   // 画面下端に入った瞬間に出現開始し、画面下 1/4〜1/5 の位置で着地させる。
   // （以前は画面中央で着地させていたため、画面下半分が「まだ見えないカード」で埋まり、
@@ -2238,8 +2238,67 @@ async function loadGallery() {
 }
 
 /* ============================================================
-   グリッド描画
+   グリッド描画（段階的に追加：スクロールで下端に近づいたら次のページを作る）
    ============================================================ */
+const PAGE_SIZE = LITE ? 18 : 30;   // 1 回に追加する枚数（スマホ 3 列 × 6 行）
+let _renderedCount = 0;
+let _sentinel = null, _sentinelObs = null;
+
+function buildCard(img, i) {
+  const card = document.createElement('div');
+  card.className = 'gallery-card' + (SDA ? ' sda' : '');
+
+  // 画像フレーム（金縁）
+  const frame = document.createElement('div');
+  frame.className = 'gallery-item';
+  frame.innerHTML = `<img src="${img.thumbUrl || img.url}" alt="" loading="lazy" decoding="async">`;
+  frame.addEventListener('click', () => openLightbox(i));
+
+  // 美術館銘板（タイトル）
+  const plate = document.createElement('div');
+  plate.className = 'gallery-plate';
+  renderPlate(plate, img, i);
+
+  card.appendChild(frame);
+  card.appendChild(plate);
+  return card;
+}
+
+function appendCards() {
+  const end = Math.min(images.length, _renderedCount + PAGE_SIZE);
+  if (_renderedCount >= end) return;
+  const frag = document.createDocumentFragment();
+  for (let i = _renderedCount; i < end; i++) frag.appendChild(buildCard(images[i], i));
+  _renderedCount = end;
+  // 番兵（sentinel）は常にグリッド末尾に置く
+  if (_sentinel && _sentinel.parentNode === galleryGrid) galleryGrid.insertBefore(frag, _sentinel);
+  else galleryGrid.appendChild(frag);
+  if (_renderedCount >= images.length && _sentinel) _sentinel.style.display = 'none';
+  else if (_sentinel) _sentinel.style.display = '';
+  scrubGalleryCards();   // 追加直後の位置を反映（PC の 3D 演出用）
+  // 追加してもまだ番兵が先読み範囲内なら続けて追加（IntersectionObserver は状態が変わらないと再発火しない）
+  if (_renderedCount < images.length && _sentinel) {
+    requestAnimationFrame(() => {
+      if (_renderedCount < images.length && _sentinel.getBoundingClientRect().top < window.innerHeight * 2.5) appendCards();
+    });
+  }
+}
+
+function ensureSentinel() {
+  if (!_sentinel) {
+    _sentinel = document.createElement('div');
+    _sentinel.className = 'gallery-sentinel';
+    _sentinel.style.cssText = 'grid-column:1/-1;height:1px;';
+    // 画面下端から 1.5 画面分手前に来たら次ページを追加
+    _sentinelObs = new IntersectionObserver(es => {
+      if (es[0].isIntersecting) appendCards();
+    }, { rootMargin: '150% 0px' });
+    _sentinelObs.observe(_sentinel);
+  }
+  galleryGrid.appendChild(_sentinel);   // 末尾へ移動（再描画時も）
+  _sentinel.style.display = _renderedCount >= images.length ? 'none' : '';
+}
+
 function renderGallery() {
   // 件数表示（React Bits: Count Up — 画面に入ったら 0 から数え上げる）
   setGalleryCount(images.length);
@@ -2253,26 +2312,10 @@ function renderGallery() {
   }
   galleryEmpty.style.display = 'none';
 
-  images.forEach((img, i) => {
-    // カード全体
-    const card = document.createElement('div');
-    card.className = 'gallery-card' + (SDA ? ' sda' : '');
-
-    // 画像フレーム（金縁）
-    const frame = document.createElement('div');
-    frame.className = 'gallery-item';
-    frame.innerHTML = `<img src="${img.thumbUrl || img.url}" alt="" loading="lazy">`;
-    frame.addEventListener('click', () => openLightbox(i));
-
-    // 美術館銘板（タイトル）
-    const plate = document.createElement('div');
-    plate.className = 'gallery-plate';
-    renderPlate(plate, img, i);
-
-    card.appendChild(frame);
-    card.appendChild(plate);
-    galleryGrid.appendChild(card);
-  });
+  // 最初は 1 ページ分だけ作り、下端に近づくたびに追加する（212 枚を一度に作らない）
+  _renderedCount = 0;
+  appendCards();
+  ensureSentinel();
 
   // 最新収蔵の 3D リング（React Bits: Rolling Gallery）
   renderRollingGallery();
@@ -2343,29 +2386,79 @@ function escapeHtml(str) {
 /* ============================================================
    ImgBB アップロード
    ============================================================ */
-async function uploadToImgBB(file) {
+async function postToImgBB(blob, name) {
   const fd = new FormData();
-  fd.append('image', file);
+  fd.append('image', blob, name);
   const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
     method: 'POST', body: fd
   });
   if (!res.ok) throw new Error(`ImgBB HTTP ${res.status}`);
   const json = await res.json();
   if (!json.success) throw new Error('ImgBB: ' + JSON.stringify(json.error));
+  return json.data;
+}
+
+/* 端末側で縮小 JPEG を作る（ImgBB 任せだとサムネが 180px の PNG で 1 枚 85KB になる。
+   JPEG にすると同じ大きさで 10KB 前後、ライトボックス用の中サイズも 2.4MB → 150KB 程度）。
+   HEIC 等でデコードできない場合は null を返し、呼び出し側が ImgBB のサムネにフォールバックする。 */
+async function makeResizedJpeg(file, maxSide, quality) {
+  try {
+    let bmp;
+    if (typeof createImageBitmap === 'function') {
+      bmp = await createImageBitmap(file);
+    } else {
+      bmp = await new Promise((ok, ng) => {
+        const im = new Image();
+        im.onload = () => ok(im); im.onerror = ng;
+        im.src = URL.createObjectURL(file);
+      });
+    }
+    const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+    if (!w || !h) return null;
+    const scale = Math.min(1, maxSide / Math.max(w, h));
+    const cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+    const cv = document.createElement('canvas');
+    cv.width = cw; cv.height = ch;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, cw, ch);     // 透過 PNG の背景を白に
+    cx.drawImage(bmp, 0, 0, cw, ch);
+    if (bmp.close) bmp.close();
+    const blob = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', quality));
+    return blob || null;
+  } catch (e) {
+    console.warn('縮小に失敗（ImgBB のサムネを使用）:', e);
+    return null;
+  }
+}
+
+async function uploadToImgBB(file) {
+  const base = (file.name || 'photo').replace(/\.[^.]+$/, '');
+  // 原寸・中サイズ(1280px)・サムネ(400px) を並行で作ってアップロード
+  const [orig, mediumBlob, thumbBlob] = await Promise.all([
+    postToImgBB(file, file.name),
+    makeResizedJpeg(file, 1280, 0.82),
+    makeResizedJpeg(file, 400, 0.8),
+  ]);
+  const [medium, thumb] = await Promise.all([
+    mediumBlob ? postToImgBB(mediumBlob, base + '_m.jpg').catch(() => null) : null,
+    thumbBlob  ? postToImgBB(thumbBlob,  base + '_t.jpg').catch(() => null) : null,
+  ]);
   return {
-    url:       json.data.url,                              // フルサイズ（ライトボックス用）
-    thumbUrl:  json.data.thumb?.url || json.data.medium?.url || json.data.url, // 小サイズ（ギャラリー表示用）
-    deleteUrl: json.data.delete_url
+    url:       orig.url,                                                          // 原寸（ダウンロード用）
+    mediumUrl: medium?.url || orig.medium?.url || orig.url,                        // ライトボックス用
+    thumbUrl:  thumb?.url || orig.thumb?.url || orig.medium?.url || orig.url,     // ギャラリー表示用
+    deleteUrl: orig.delete_url
   };
 }
 
 /* ============================================================
    Firestore 保存
    ============================================================ */
-async function saveImage(url, thumbUrl, deleteUrl, title) {
+async function saveImage(url, thumbUrl, deleteUrl, title, mediumUrl) {
   await db.collection(COLLECTION).add({
     url,
-    thumbUrl,   // ギャラリー表示用（中サイズ・通信量節約）
+    thumbUrl,   // ギャラリー表示用（小サイズ・通信量節約）
+    mediumUrl: mediumUrl || url,   // ライトボックス用（中サイズ）
     deleteUrl,
     title: title || '',
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -2464,8 +2557,8 @@ umSubmit.addEventListener('click', async () => {
     const { file, title } = entries[i];
     toastText.textContent = `${i + 1} / ${entries.length} をアップロード中…`;
     try {
-      const { url, thumbUrl, deleteUrl } = await uploadToImgBB(file);
-      await saveImage(url, thumbUrl, deleteUrl, title);
+      const { url, thumbUrl, deleteUrl, mediumUrl } = await uploadToImgBB(file);
+      await saveImage(url, thumbUrl, deleteUrl, title, mediumUrl);
       success++;
     } catch (err) {
       console.error(file.name, err);
@@ -2509,7 +2602,7 @@ function closeLightbox() {
 function updateLightbox() {
   const img = images[currentIdx];
   lbImg.style.opacity = 0;
-  lbImg.src = img.url;
+  lbImg.src = img.mediumUrl || img.url;   // 中サイズがあればそれを表示（原寸はダウンロード時のみ）
   lbImg.onload = () => { lbImg.style.opacity = 1; };
   lbCaption.textContent = img.title || '';
   lbNum.textContent = `${currentIdx + 1} / ${images.length}`;
