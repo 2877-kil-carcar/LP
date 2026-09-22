@@ -2014,58 +2014,68 @@ const risePanel = document.getElementById('risePanel');
   }
   setBannerVar();
 
-  /* ── 連番画像をcanvasに描画してスクロールでコマ送り（PC/スマホ共通） ── */
+  /* ── 連番画像をcanvasに描画してスクロールでコマ送り（PC/スマホ共通） ──
+     スマホでタブが落ちる（「問題が繰り返し発生」で再読み込みされる）原因は
+     メモリ。旧実装は 61〜121 枚の 720x720 画像（デコード後 2MB/枚）と、
+     さらに画面サイズのビットマップを二重に保持し、アドレスバーの出入りによる
+     resize のたびに全ビットマップを作り直していた（ピーク 200MB 超）。
+     新実装：
+       ・スマホ縦持ちは 360x640 の縦長セット（frames/m/、3 コマに 1 コマ＝41 枚）
+       ・ビットマップは元画像サイズで 1 つだけ作り、作ったら <img> は捨てる
+         （createImageBitmap の resize オプションは Safari 非対応なので使わない）
+       ・resize ではビットマップを作り直さない（描画は cover の drawImage 1 回）
+       ・同時読み込みは 3 本まで。先頭コマを最優先し Firebase / 写真の帯域を奪わない */
   const canvas = document.getElementById('heroCanvas');
   const ctx    = canvas ? canvas.getContext('2d', { alpha: false }) : null;
   const FRAME_TOTAL = 121;
-  // スマホは 2 コマに 1 コマ（61 コマ）に間引き。200vh のスクロールなら十分滑らか。
-  const FRAME_STEP  = LITE ? 2 : 1;
-  const frames = [];            // HTMLImageElement（元画像 720x720）
-  const bitmaps = [];           // デコード済み ImageBitmap（毎回の JPEG 再デコードを防ぐ）
-  let curFrame = -1;
-  let bmpKey = '';              // ビットマップを作った時のキャンバスサイズ
+  const PORTRAIT = window.innerHeight > window.innerWidth;
+  const MOBILE_SET = LITE && PORTRAIT;                    // 縦持ちスマホ → 縦長の小画像
+  const FRAME_DIR  = MOBILE_SET ? 'frames/m/' : 'frames/';
+  const FRAME_STEP = LITE ? 3 : 1;                        // タッチ端末は 3 コマに 1 コマ（41 枚）
   const pad = (n) => String(n).padStart(3, '0');
   const canBitmap = typeof createImageBitmap === 'function';
 
-  // 先頭フレームを優先的に読み込み→順次プリロード
-  for (let i = 1; i <= FRAME_TOTAL; i += FRAME_STEP) {
-    const img = new Image();
-    img.src = `frames/f_${pad(i)}.jpg`;
-    const k = frames.length;
-    img.onload = () => { prepareBitmap(k); if (k === 0) resizeCanvas(); };
-    frames.push(img);
-  }
-  const FRAME_COUNT = frames.length;
+  const srcList = [];
+  for (let i = 1; i <= FRAME_TOTAL; i += FRAME_STEP) srcList.push(`${FRAME_DIR}f_${pad(i)}.jpg`);
+  const FRAME_COUNT = srcList.length;
+  const frames  = new Array(FRAME_COUNT).fill(null);   // ImageBitmap（無ければ HTMLImageElement）
+  let loaded = 0;
+  let curFrame = -1;
 
-  /* 重さの本質は「スクロールごとに JPEG を再デコードして拡大描画」すること。
-     スマホでは表示サイズ（dpr=1）に cover で切り抜き済みのビットマップを事前生成し、
-     drawImage は等倍コピーだけにする。PC は等倍ビットマップを保持して拡大描画する。 */
-  function prepareBitmap(k) {
-    if (!canBitmap || !canvas) return;
-    const img = frames[k];
-    if (!img || !img.complete || !img.naturalWidth) return;
-    const cw = canvas.width, ch = canvas.height;
-    if (!cw || !ch) return;
-    const key = cw + 'x' + ch;
-    if (LITE) {
-      const iw = img.naturalWidth, ih = img.naturalHeight;
-      const scale = Math.max(cw / iw, ch / ih);
-      const sw = cw / scale, sh = ch / scale;                 // 元画像上の切り抜き範囲
-      createImageBitmap(img, (iw - sw) / 2, (ih - sh) / 2, sw, sh,
-        { resizeWidth: cw, resizeHeight: ch, resizeQuality: 'medium' })
-        .then(b => { if (bmpKey === key) { bitmaps[k] = b; if (k === curFrame) drawFrame(k, true); } })
-        .catch(() => {});
-    } else {
-      createImageBitmap(img)
-        .then(b => { bitmaps[k] = b; if (k === curFrame) drawFrame(k, true); })
-        .catch(() => {});
+  // 同時 3 本の制限付きで順番に読み込む
+  let nextIdx = 0, inFlight = 0;
+  const CONCURRENCY = 3;
+  function pump() {
+    while (inFlight < CONCURRENCY && nextIdx < FRAME_COUNT) {
+      const k = nextIdx++;
+      inFlight++;
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        const done = (src) => {
+          frames[k] = src; loaded++;
+          if (k === 0) resizeCanvas();
+          else if (curFrame >= 0 && wantFrame(curFrame) !== drawnFrame) drawFrame(curFrame, true);
+          inFlight--; pump();
+        };
+        if (canBitmap) createImageBitmap(img).then(done).catch(() => done(img));
+        else done(img);
+      };
+      img.onerror = () => { inFlight--; pump(); };
+      img.src = srcList[k];
     }
   }
-  function rebuildBitmaps() {
-    bitmaps.forEach(b => b && b.close && b.close());
-    bitmaps.length = 0;
-    bmpKey = canvas.width + 'x' + canvas.height;
-    for (let k = 0; k < FRAME_COUNT; k++) prepareBitmap(k);
+  pump();
+
+  // idx 自体が未読込なら、いちばん近い読込済みコマで代用（読込中でもスクロールに反応する）
+  function wantFrame(idx) {
+    if (idx < 0) idx = 0;
+    if (frames[idx]) return idx;
+    for (let d = 1; d < FRAME_COUNT; d++) {
+      if (idx - d >= 0 && frames[idx - d]) return idx - d;
+      if (idx + d < FRAME_COUNT && frames[idx + d]) return idx + d;
+    }
+    return -1;
   }
 
   function resizeCanvas() {
@@ -2075,29 +2085,24 @@ const risePanel = document.getElementById('risePanel');
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!w || !h) return;
     const nw = Math.round(w * dpr), nh = Math.round(h * dpr);
-    if (canvas.width !== nw || canvas.height !== nh) {
-      canvas.width = nw; canvas.height = nh;
-      if (LITE || bitmaps.length === 0) rebuildBitmaps();   // スマホはサイズ依存なので作り直し
-    }
+    if (canvas.width !== nw || canvas.height !== nh) { canvas.width = nw; canvas.height = nh; }
     drawFrame(curFrame < 0 ? 0 : curFrame, true);
   }
 
+  let drawnFrame = -1;   // 実際に描いたコマ（代用コマ含む）
   function drawFrame(idx, force) {
     if (!ctx) return;
     idx = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round(idx)));
     if (!force && idx === curFrame) return;
-    const cw = canvas.width, ch = canvas.height;
-    const bmp = bitmaps[idx];
-    if (bmp && LITE) {                       // 切り抜き済み → 等倍コピーだけ
-      curFrame = idx;
-      ctx.drawImage(bmp, 0, 0);
-      return;
-    }
-    const src = bmp || frames[idx];
-    if (!src) return;
-    if (!bmp && (!src.complete || !src.naturalWidth)) return; // 未ロードはスキップ
     curFrame = idx;
-    const iw = bmp ? bmp.width : src.naturalWidth, ih = bmp ? bmp.height : src.naturalHeight;
+    const use = wantFrame(idx);
+    if (use < 0) return;                       // まだ 1 枚も無い
+    if (!force && use === drawnFrame) return;  // 代用コマが同じなら描き直さない
+    drawnFrame = use;
+    const src = frames[use];
+    const cw = canvas.width, ch = canvas.height;
+    const iw = src.width || src.naturalWidth, ih = src.height || src.naturalHeight;
+    if (!iw || !ih) return;
     const scale = Math.max(cw / iw, ch / ih); // cover
     const dw = iw * scale, dh = ih * scale;
     ctx.drawImage(src, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
